@@ -21,14 +21,19 @@ import { SyncLogModal } from "./SyncLogModal";
 import {
   FaSyncAlt,
   FaServer,
+  FaGamepad,
+  FaCog,
   FaCheckCircle,
   FaExclamationCircle,
-  FaClock,
   FaPlus,
   FaFileAlt,
+  FaArrowUp,
+  FaArrowDown,
+  FaExchangeAlt,
 } from "react-icons/fa";
 
 export function QuickAccessPanel() {
+  const [activeTab, setActiveTab] = useState<"games" | "settings">("games");
   const [games, setGames] = useState<NonSteamGame[]>([]);
   const [profiles, setProfiles] = useState<GameProfile[]>([]);
   const [remotes, setRemotes] = useState<RemoteConfig[]>([]);
@@ -63,7 +68,7 @@ export function QuickAccessPanel() {
     if (!profile.id) return;
     setSyncingId(profile.id);
     toaster.toast({
-      title: "Unison Sync Started",
+      title: "Unison Syncing",
       body: `Syncing ${profile.game_name}...`,
     });
 
@@ -71,8 +76,8 @@ export function QuickAccessPanel() {
       const res = await triggerSync(profile.id);
       if (res.success) {
         toaster.toast({
-          title: "Sync Succeeded",
-          body: `${profile.game_name}: ${res.details}`,
+          title: "Sync Finished",
+          body: `${profile.game_name}: ${res.direction_label || res.details}`,
         });
       } else {
         toaster.toast({
@@ -83,7 +88,7 @@ export function QuickAccessPanel() {
     } catch (e: any) {
       toaster.toast({
         title: "Sync Error",
-        body: e.message || "Failed to run Unison",
+        body: e.message || "Failed to execute Unison",
       });
     } finally {
       setSyncingId(null);
@@ -133,211 +138,372 @@ export function QuickAccessPanel() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const renderDirectionBadge = (prof: GameProfile) => {
+    const dir = prof.last_direction;
+    const label = prof.last_direction_label || prof.last_details;
+
+    if (dir === "upload") {
+      return (
+        <span style={{ color: "#2ecc71", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+          <FaArrowUp /> {label || "Deck ➔ Server"}
+        </span>
+      );
+    } else if (dir === "download") {
+      return (
+        <span style={{ color: "#3498db", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+          <FaArrowDown /> {label || "Server ➔ Deck"}
+        </span>
+      );
+    } else if (dir === "bidirectional") {
+      return (
+        <span style={{ color: "#f39c12", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+          <FaExchangeAlt /> {label || "Both ways"}
+        </span>
+      );
+    } else if (dir === "in_sync" || prof.last_status === "in_sync") {
+      return (
+        <span style={{ color: "#8b929a", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+          <FaCheckCircle /> In sync
+        </span>
+      );
+    } else if (prof.last_status === "error" || dir === "error") {
+      return (
+        <span style={{ color: "#e74c3c", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
+          <FaExclamationCircle /> Error
+        </span>
+      );
+    }
+    return (
+      <span style={{ color: "#8b929a", fontSize: "11px" }}>
+        Ready
+      </span>
+    );
+  };
+
   const unconfiguredGames = games.filter(
     (g) => !profiles.some((p) => p.app_id === g.app_id)
   );
 
   return (
     <>
-      {/* Remote & Server Status Section */}
-      <PanelSection title="Central Server & Remotes">
-        <PanelSectionRow>
-          <ButtonItem layout="below" onClick={openRemoteManager}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
-              <FaServer /> Manage Remotes & SSH Key
-            </div>
-          </ButtonItem>
-        </PanelSectionRow>
-      </PanelSection>
+      {/* Tab Navigation Header */}
+      <div
+        style={{
+          display: "flex",
+          gap: "4px",
+          background: "rgba(0, 0, 0, 0.4)",
+          padding: "3px",
+          borderRadius: "6px",
+          marginBottom: "10px",
+        }}
+      >
+        <button
+          onClick={() => setActiveTab("games")}
+          style={{
+            flex: 1,
+            padding: "6px 4px",
+            borderRadius: "4px",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: activeTab === "games" ? "bold" : "normal",
+            background: activeTab === "games" ? "#1a9fff" : "transparent",
+            color: activeTab === "games" ? "#ffffff" : "#8b929a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            fontSize: "12px",
+          }}
+        >
+          <FaGamepad /> Games ({profiles.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("settings")}
+          style={{
+            flex: 1,
+            padding: "6px 4px",
+            borderRadius: "4px",
+            border: "none",
+            cursor: "pointer",
+            fontWeight: activeTab === "settings" ? "bold" : "normal",
+            background: activeTab === "settings" ? "#1a9fff" : "transparent",
+            color: activeTab === "settings" ? "#ffffff" : "#8b929a",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            fontSize: "12px",
+          }}
+        >
+          <FaCog /> Settings
+        </button>
+      </div>
 
-      {/* Initialized Games with Unison */}
-      <PanelSection title="Initialized Games">
-        {loading ? (
-          <PanelSectionRow>
-            <div style={{ padding: "8px", color: "#8b929a", textAlign: "center" }}>
-              Loading game profiles...
-            </div>
-          </PanelSectionRow>
-        ) : profiles.length > 0 ? (
-          profiles.map((prof) => {
-            const isSyncing = syncingId === prof.id;
-            const matchingGame = games.find((g) => g.app_id === prof.app_id) || {
-              app_id: prof.app_id,
-              name: prof.game_name,
-              exe: "",
-              start_dir: "",
-              compatdata_path: "",
-              compatdata_exists: true,
-              has_proton_prefix: true,
-            };
-
-            return (
-              <PanelSectionRow key={prof.id}>
-                <div
-                  style={{
-                    background: "rgba(255, 255, 255, 0.04)",
-                    borderRadius: "6px",
-                    padding: "10px",
-                    display: "flex",
-                    flexDirection: "column",
-                    gap: "8px",
-                  }}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <div style={{ fontWeight: "bold", fontSize: "14px", color: "#fff" }}>
-                      {prof.game_name}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "4px",
-                        color:
-                          prof.last_status === "in_sync" || prof.last_status === "updated"
-                            ? "#2ecc71"
-                            : prof.last_status === "error" || prof.last_status === "conflict"
-                            ? "#e74c3c"
-                            : "#8b929a",
-                      }}
-                    >
-                      {prof.last_status === "in_sync" || prof.last_status === "updated" ? (
-                        <FaCheckCircle />
-                      ) : prof.last_status === "error" || prof.last_status === "conflict" ? (
-                        <FaExclamationCircle />
-                      ) : (
-                        <FaClock />
-                      )}
-                      <span>{prof.last_status ? prof.last_status.replace("_", " ") : "Ready"}</span>
-                    </div>
-                  </div>
-
-                  <div style={{ fontSize: "11px", color: "#8b929a" }}>
-                    Last Synced: {formatTime(prof.last_synced)}
-                    {prof.last_details ? ` (${prof.last_details})` : ""}
-                  </div>
-
-                  <div style={{ display: "flex", gap: "6px" }}>
-                    <div style={{ flex: 1 }}>
-                      <ButtonItem
-                        layout="below"
-                        disabled={isSyncing}
-                        onClick={() => handleSyncGame(prof)}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                          <FaSyncAlt className={isSyncing ? "spin" : ""} />
-                          {isSyncing ? "Syncing..." : "Sync Now"}
-                        </div>
-                      </ButtonItem>
-                    </div>
-                    <div style={{ width: "70px" }}>
-                      <ButtonItem
-                        layout="below"
-                        onClick={() => openProfileConfig(matchingGame, prof)}
-                      >
-                        Config
-                      </ButtonItem>
-                    </div>
-                    {prof.last_synced && (
-                      <div style={{ width: "60px" }}>
-                        <ButtonItem
-                          layout="below"
-                          onClick={() => openLogForProfile(prof.id!, prof.game_name)}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
-                            <FaFileAlt /> Log
-                          </div>
-                        </ButtonItem>
-                      </div>
-                    )}
-                  </div>
+      {/* TAB 1: GAMES */}
+      {activeTab === "games" && (
+        <>
+          <PanelSection title="Initialized Games">
+            {loading ? (
+              <PanelSectionRow>
+                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                  Loading game profiles...
                 </div>
               </PanelSectionRow>
-            );
-          })
-        ) : (
-          <PanelSectionRow>
-            <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "12px" }}>
-              No games initialized yet. Select a Non-Steam game below to set up Unison.
-            </div>
-          </PanelSectionRow>
-        )}
-      </PanelSection>
+            ) : profiles.length > 0 ? (
+              profiles.map((prof) => {
+                const isSyncing = syncingId === prof.id;
+                const matchingGame = games.find((g) => g.app_id === prof.app_id) || {
+                  app_id: prof.app_id,
+                  name: prof.game_name,
+                  exe: "",
+                  start_dir: "",
+                  compatdata_path: "",
+                  compatdata_exists: true,
+                  has_proton_prefix: true,
+                };
 
-      {/* Available Non-Steam Games to Initialize */}
-      <PanelSection title="Non-Steam Games Detected">
-        {unconfiguredGames.length > 0 ? (
-          unconfiguredGames.map((game) => (
-            <PanelSectionRow key={game.app_id}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "4px 0",
-                }}
-              >
-                <div>
-                  <div style={{ fontSize: "13px", fontWeight: "bold" }}>{game.name}</div>
-                  <div style={{ fontSize: "10px", color: "#8b929a" }}>AppID: {game.app_id}</div>
-                </div>
-                <div style={{ minWidth: "120px" }}>
-                  <ButtonItem
-                    layout="below"
-                    onClick={() => openProfileConfig(game)}
-                  >
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
-                      <FaPlus /> Initialize
+                return (
+                  <PanelSectionRow key={prof.id}>
+                    <div
+                      style={{
+                        background: "rgba(255, 255, 255, 0.04)",
+                        borderRadius: "6px",
+                        padding: "8px 10px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                        width: "100%",
+                        boxSizing: "border-box",
+                      }}
+                    >
+                      {/* Row 1: Title and Direction Badge */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "6px" }}>
+                        <div
+                          style={{
+                            fontWeight: "bold",
+                            fontSize: "13px",
+                            color: "#fff",
+                            whiteSpace: "nowrap",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            flex: 1,
+                          }}
+                          title={prof.game_name}
+                        >
+                          {prof.game_name}
+                        </div>
+                        <div>
+                          {renderDirectionBadge(prof)}
+                        </div>
+                      </div>
+
+                      {/* Row 2: Timestamp */}
+                      <div style={{ fontSize: "10px", color: "#8b929a" }}>
+                        Last synced: {formatTime(prof.last_synced)}
+                      </div>
+
+                      {/* Row 3: Action Buttons (Narrow QAM Optimized) */}
+                      <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px" }}>
+                        {/* Primary Sync button */}
+                        <button
+                          onClick={() => handleSyncGame(prof)}
+                          disabled={isSyncing}
+                          style={{
+                            flex: 1,
+                            height: "30px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "5px",
+                            background: isSyncing ? "#444" : "#1a9fff",
+                            color: "#fff",
+                            border: "none",
+                            borderRadius: "4px",
+                            fontSize: "11px",
+                            cursor: isSyncing ? "not-allowed" : "pointer",
+                            fontWeight: "bold",
+                          }}
+                        >
+                          <FaSyncAlt className={isSyncing ? "spin" : ""} />
+                          {isSyncing ? "Syncing..." : "Sync"}
+                        </button>
+
+                        {/* Compact Config Icon Button */}
+                        <button
+                          onClick={() => openProfileConfig(matchingGame, prof)}
+                          title="Configure Game"
+                          style={{
+                            width: "32px",
+                            height: "30px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            background: "rgba(255, 255, 255, 0.08)",
+                            color: "#c9d1d9",
+                            border: "none",
+                            borderRadius: "4px",
+                            cursor: "pointer",
+                            fontSize: "12px",
+                          }}
+                        >
+                          <FaCog />
+                        </button>
+
+                        {/* Compact Log Icon Button */}
+                        {prof.last_synced && (
+                          <button
+                            onClick={() => openLogForProfile(prof.id!, prof.game_name)}
+                            title="View Sync Log"
+                            style={{
+                              width: "32px",
+                              height: "30px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              background: "rgba(255, 255, 255, 0.08)",
+                              color: prof.last_status === "error" ? "#e74c3c" : "#c9d1d9",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer",
+                              fontSize: "12px",
+                            }}
+                          >
+                            <FaFileAlt />
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </ButtonItem>
+                  </PanelSectionRow>
+                );
+              })
+            ) : (
+              <PanelSectionRow>
+                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                  No games initialized yet. Select a Non-Steam game below to set up Unison.
                 </div>
-              </div>
-            </PanelSectionRow>
-          ))
-        ) : (
-          <PanelSectionRow>
-            <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "12px" }}>
-              {games.length === 0
-                ? "No Non-Steam games detected in Steam shortcuts."
-                : "All detected Non-Steam games are initialized!"}
-            </div>
-          </PanelSectionRow>
-        )}
-      </PanelSection>
+              </PanelSectionRow>
+            )}
+          </PanelSection>
 
-      {/* Recent History / Logs */}
-      {history.length > 0 && (
-        <PanelSection title="Recent Activity & Logs">
-          {history.slice(0, 4).map((item, idx) => (
-            <PanelSectionRow key={idx}>
-              <div
-                onClick={() => openLogModal(item)}
-                style={{
-                  fontSize: "11px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  width: "100%",
-                  cursor: "pointer",
-                  padding: "6px 8px",
-                  borderRadius: "4px",
-                  background: "rgba(255, 255, 255, 0.03)",
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: "bold" }}>{item.game_name}</span>
-                  <span style={{ color: "#8b929a", marginLeft: "6px" }}>({formatTime(item.timestamp)})</span>
+          {/* Available Non-Steam Games to Initialize */}
+          <PanelSection title="Non-Steam Games Detected">
+            {unconfiguredGames.length > 0 ? (
+              unconfiguredGames.map((game) => (
+                <PanelSectionRow key={game.app_id}>
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "4px 0",
+                      width: "100%",
+                      gap: "6px",
+                    }}
+                  >
+                    <div style={{ flex: 1, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          fontSize: "12px",
+                          fontWeight: "bold",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {game.name}
+                      </div>
+                      <div style={{ fontSize: "10px", color: "#8b929a" }}>AppID: {game.app_id}</div>
+                    </div>
+                    <button
+                      onClick={() => openProfileConfig(game)}
+                      style={{
+                        padding: "5px 10px",
+                        height: "28px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                        background: "rgba(255, 255, 255, 0.1)",
+                        color: "#67c1f5",
+                        border: "1px solid rgba(103, 193, 245, 0.3)",
+                        borderRadius: "4px",
+                        fontSize: "11px",
+                        cursor: "pointer",
+                        fontWeight: "bold",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      <FaPlus /> Init
+                    </button>
+                  </div>
+                </PanelSectionRow>
+              ))
+            ) : (
+              <PanelSectionRow>
+                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                  {games.length === 0
+                    ? "No Non-Steam games detected in Steam shortcuts."
+                    : "All detected Non-Steam games are initialized!"}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                  <span style={{ color: item.success ? "#2ecc71" : "#e74c3c" }}>
-                    {item.status}
-                  </span>
-                  <span style={{ fontSize: "10px", color: "#67c1f5" }}>[View Log]</span>
+              </PanelSectionRow>
+            )}
+          </PanelSection>
+        </>
+      )}
+
+      {/* TAB 2: SETTINGS */}
+      {activeTab === "settings" && (
+        <>
+          <PanelSection title="Remotes & Connections">
+            <PanelSectionRow>
+              <ButtonItem layout="below" onClick={openRemoteManager}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "12px" }}>
+                  <FaServer /> Manage Remotes & SSH Key
                 </div>
-              </div>
+              </ButtonItem>
             </PanelSectionRow>
-          ))}
-        </PanelSection>
+          </PanelSection>
+
+          {/* Recent History / Logs */}
+          <PanelSection title="Recent Activity & Logs">
+            {history.length > 0 ? (
+              history.slice(0, 5).map((item, idx) => (
+                <PanelSectionRow key={idx}>
+                  <div
+                    onClick={() => openLogModal(item)}
+                    style={{
+                      fontSize: "11px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      width: "100%",
+                      cursor: "pointer",
+                      padding: "6px 8px",
+                      borderRadius: "4px",
+                      background: "rgba(255, 255, 255, 0.03)",
+                    }}
+                  >
+                    <div style={{ flex: 1, overflow: "hidden" }}>
+                      <span style={{ fontWeight: "bold" }}>{item.game_name}</span>
+                      <span style={{ color: "#8b929a", marginLeft: "6px" }}>({formatTime(item.timestamp)})</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <span style={{ color: item.success ? "#2ecc71" : "#e74c3c" }}>
+                        {item.direction_label || item.status}
+                      </span>
+                      <span style={{ fontSize: "10px", color: "#67c1f5" }}>[Log]</span>
+                    </div>
+                  </div>
+                </PanelSectionRow>
+              ))
+            ) : (
+              <PanelSectionRow>
+                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                  No recent sync history recorded.
+                </div>
+              </PanelSectionRow>
+            )}
+          </PanelSection>
+        </>
       )}
     </>
   );

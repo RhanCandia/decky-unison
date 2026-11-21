@@ -133,12 +133,14 @@ class ConfigStore:
         self.save()
         return profile
 
-    def update_profile_status(self, profile_id: str, status: str, details: str):
+    def update_profile_status(self, profile_id: str, status: str, details: str, direction: str = "", direction_label: str = ""):
         for p in self.get_profiles():
             if p.get("id") == profile_id:
                 p["last_synced"] = int(time.time())
                 p["last_status"] = status
                 p["last_details"] = details
+                p["last_direction"] = direction
+                p["last_direction_label"] = direction_label
                 break
         self.save()
 

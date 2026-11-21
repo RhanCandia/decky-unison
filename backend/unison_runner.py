@@ -188,15 +188,33 @@ class UnisonRunner:
             # 2: Non-fatal failure (e.g. roots not found)
             # 3: Fatal error
 
-            files_synced = 0
+            uploaded_count = 0
+            downloaded_count = 0
             has_conflict = False
             is_nothing_to_do = "Nothing to do" in stdout or "replicas have not changed" in stdout
 
             for line in stdout.splitlines():
                 if "<-?->" in line or "conflict:" in line.lower():
                     has_conflict = True
-                if ("<----" in line or "---->" in line) and "Updating" in line:
-                    files_synced += 1
+                if "---->" in line:
+                    uploaded_count += 1
+                elif "<----" in line:
+                    downloaded_count += 1
+
+            files_synced = uploaded_count + downloaded_count
+
+            if uploaded_count > 0 and downloaded_count > 0:
+                direction = "bidirectional"
+                direction_label = f"↑ {uploaded_count} up, ↓ {downloaded_count} down"
+            elif uploaded_count > 0:
+                direction = "upload"
+                direction_label = f"↑ Uploaded {uploaded_count} file(s)"
+            elif downloaded_count > 0:
+                direction = "download"
+                direction_label = f"↓ Downloaded {downloaded_count} file(s)"
+            else:
+                direction = "in_sync"
+                direction_label = "Replicas in sync"
 
             cmd_str = " ".join(cmd)
 
@@ -205,7 +223,11 @@ class UnisonRunner:
                     "success": True,
                     "status": "in_sync" if is_nothing_to_do else "updated",
                     "files_synced": files_synced,
-                    "details": "Replicas are in sync (no changes)" if is_nothing_to_do else f"Synced {files_synced} file(s) successfully.",
+                    "uploaded": uploaded_count,
+                    "downloaded": downloaded_count,
+                    "direction": direction,
+                    "direction_label": direction_label,
+                    "details": direction_label,
                     "command": cmd_str,
                     "raw_output": combined_output.strip()
                 }
@@ -214,6 +236,10 @@ class UnisonRunner:
                     "success": not has_conflict,
                     "status": "conflict" if has_conflict else "partial_error",
                     "files_synced": files_synced,
+                    "uploaded": uploaded_count,
+                    "downloaded": downloaded_count,
+                    "direction": "conflict" if has_conflict else direction,
+                    "direction_label": "Conflict detected" if has_conflict else direction_label,
                     "details": "Conflict detected during synchronization." if has_conflict else "Some files skipped during sync.",
                     "command": cmd_str,
                     "raw_output": combined_output.strip()
@@ -223,6 +249,10 @@ class UnisonRunner:
                     "success": False,
                     "status": "error",
                     "files_synced": 0,
+                    "uploaded": 0,
+                    "downloaded": 0,
+                    "direction": "error",
+                    "direction_label": f"Exit code {proc.returncode}",
                     "details": f"Unison exited with code {proc.returncode}.",
                     "command": cmd_str,
                     "raw_output": combined_output.strip()

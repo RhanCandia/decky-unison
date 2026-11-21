@@ -1,6 +1,6 @@
 {
   "name": "decky-unison",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Bi-directional save file synchronization for Non-Steam Games on Steam Deck using Unison",
   "type": "module",
   "scripts": {

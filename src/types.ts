@@ -69,6 +69,8 @@ export interface GameProfile {
   last_synced?: number | null;
   last_status?: "in_sync" | "updated" | "conflict" | "error" | null;
   last_details?: string | null;
+  last_direction?: "upload" | "download" | "bidirectional" | "in_sync" | "conflict" | "error" | null;
+  last_direction_label?: string | null;
 }
 
 export interface TestResult {
@@ -80,6 +82,10 @@ export interface SyncResult {
   success: boolean;
   status: "in_sync" | "updated" | "conflict" | "error";
   files_synced: number;
+  uploaded?: number;
+  downloaded?: number;
+  direction?: "upload" | "download" | "bidirectional" | "in_sync" | "conflict" | "error";
+  direction_label?: string;
   details: string;
   command?: string;
   raw_output: string;
@@ -105,6 +111,10 @@ export interface HistoryEntry {
   status: string;
   success: boolean;
   files_synced: number;
+  uploaded?: number;
+  downloaded?: number;
+  direction?: string;
+  direction_label?: string;
   details: string;
   command?: string;
   raw_output?: string;

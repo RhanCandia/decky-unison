@@ -156,7 +156,9 @@ class Plugin:
 
         status = res.get("status", "error")
         details = res.get("details", "")
-        self.config_store.update_profile_status(profile_id, status, details)
+        direction = res.get("direction", "")
+        direction_label = res.get("direction_label", "")
+        self.config_store.update_profile_status(profile_id, status, details, direction, direction_label)
 
         # Log to history
         self.config_store.add_history_entry({
@@ -165,6 +167,10 @@ class Plugin:
             "status": status,
             "success": res.get("success", False),
             "files_synced": res.get("files_synced", 0),
+            "uploaded": res.get("uploaded", 0),
+            "downloaded": res.get("downloaded", 0),
+            "direction": direction,
+            "direction_label": direction_label,
             "details": details,
             "command": res.get("command", ""),
             "raw_output": res.get("raw_output", "")
