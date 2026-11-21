@@ -164,6 +164,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
       <DialogSubHeader>Configure SSH, Socket, or Local sync destinations</DialogSubHeader>
 
       <DialogBody>
+        <div className="decky-unison-root">
         {/* Remote Selector & Add Button */}
         <DialogControlsSection>
           <DialogControlsSectionHeader>Active Remote</DialogControlsSectionHeader>
@@ -362,6 +363,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
             </DialogButton>
           </DialogControlsSection>
         )}
+        </div>
       </DialogBody>
 
       <DialogFooter>

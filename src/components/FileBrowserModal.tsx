@@ -76,6 +76,7 @@ export function FileBrowserModal({
       </DialogSubHeader>
 
       <DialogBody>
+        <div className="decky-unison-root">
         {/* Quick Jumps */}
         {quickJumps.length > 0 && (
           <DialogControlsSection>
@@ -213,6 +214,7 @@ export function FileBrowserModal({
             )}
           </div>
         </DialogControlsSection>
+        </div>
       </DialogBody>
 
       <DialogFooter>

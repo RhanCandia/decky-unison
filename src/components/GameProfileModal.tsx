@@ -131,6 +131,7 @@ export function GameProfileModal({
       </DialogSubHeader>
 
       <DialogBody>
+        <div className="decky-unison-root">
         {/* Section 1: Local Save Directory on Steam Deck */}
         <DialogControlsSection>
           <DialogControlsSectionHeader>Local Save Directory (Steam Deck)</DialogControlsSectionHeader>
@@ -330,6 +331,7 @@ export function GameProfileModal({
             />
           </DialogControlsSection>
         )}
+        </div>
       </DialogBody>
 
       <DialogFooter>

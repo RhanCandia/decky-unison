@@ -3,6 +3,7 @@ import {
   PanelSectionRow,
   ButtonItem,
   DialogButton,
+  Field,
   Focusable,
   showModal,
 } from "@decky/ui";
@@ -187,7 +188,70 @@ export function QuickAccessPanel() {
   );
 
   return (
-    <>
+    <div className="decky-unison-root">
+      {/* Global CSS for visible Controller & Hover focus highlighting */}
+      <style>{`
+        .decky-unison-root {
+          width: 100%;
+        }
+        .decky-unison-btn,
+        .decky-unison-tab,
+        .decky-unison-card {
+          transition: all 0.12s ease-in-out !important;
+          border: 1px solid rgba(255, 255, 255, 0.1) !important;
+        }
+        /* Buttons Focus & Hover */
+        .decky-unison-btn:focus,
+        .decky-unison-btn:focus-visible,
+        .decky-unison-btn:hover,
+        .decky-unison-btn.gpfocus,
+        .decky-unison-btn[data-gpfocus="true"],
+        .decky-unison-btn.focused {
+          outline: 2px solid #ffffff !important;
+          outline-offset: 1px !important;
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.9), inset 0 0 4px rgba(255, 255, 255, 0.3) !important;
+          border-color: #ffffff !important;
+          filter: brightness(1.25) !important;
+          z-index: 2 !important;
+        }
+        /* Tab Navigation Focus & Hover */
+        .decky-unison-tab:focus,
+        .decky-unison-tab:focus-visible,
+        .decky-unison-tab:hover,
+        .decky-unison-tab.gpfocus,
+        .decky-unison-tab[data-gpfocus="true"],
+        .decky-unison-tab.focused {
+          outline: 2px solid #ffffff !important;
+          outline-offset: 1px !important;
+          box-shadow: 0 0 10px rgba(255, 255, 255, 0.9) !important;
+          border-color: #ffffff !important;
+          filter: brightness(1.2) !important;
+          z-index: 2 !important;
+        }
+        /* Card & Row Focus & Hover */
+        .decky-unison-card:focus,
+        .decky-unison-card:focus-visible,
+        .decky-unison-card:hover,
+        .decky-unison-card.gpfocus,
+        .decky-unison-card[data-gpfocus="true"],
+        .decky-unison-card.focused {
+          outline: 2px solid #ffffff !important;
+          outline-offset: 1px !important;
+          box-shadow: 0 0 12px rgba(26, 159, 255, 0.9) !important;
+          border-color: #67c1f5 !important;
+          background: rgba(26, 159, 255, 0.22) !important;
+        }
+        /* Catch-all for any focused interactive element in decky-unison */
+        .decky-unison-root *:focus,
+        .decky-unison-root *:focus-visible,
+        .decky-unison-root *.gpfocus,
+        .decky-unison-root *[data-gpfocus="true"],
+        .decky-unison-root *.focused {
+          outline: 2px solid #ffffff !important;
+          outline-offset: 1px !important;
+        }
+      `}</style>
+
       {/* Tab Navigation Header - Focusable for controller */}
       <Focusable
         flow-children="horizontal"
@@ -201,6 +265,7 @@ export function QuickAccessPanel() {
         }}
       >
         <DialogButton
+          className="decky-unison-tab"
           onClick={() => setActiveTab("games")}
           style={{
             flex: 1,
@@ -213,13 +278,14 @@ export function QuickAccessPanel() {
             gap: "6px",
             fontSize: "12px",
             fontWeight: activeTab === "games" ? "bold" : "normal",
-            background: activeTab === "games" ? "#1a9fff" : "rgba(255, 255, 255, 0.06)",
-            color: activeTab === "games" ? "#ffffff" : "#8b929a",
+            background: activeTab === "games" ? "#1a9fff" : "rgba(255, 255, 255, 0.08)",
+            color: activeTab === "games" ? "#ffffff" : "#c9d1d9",
           }}
         >
           <FaGamepad /> Games ({profiles.length})
         </DialogButton>
         <DialogButton
+          className="decky-unison-tab"
           onClick={() => setActiveTab("settings")}
           style={{
             flex: 1,
@@ -232,8 +298,8 @@ export function QuickAccessPanel() {
             gap: "6px",
             fontSize: "12px",
             fontWeight: activeTab === "settings" ? "bold" : "normal",
-            background: activeTab === "settings" ? "#1a9fff" : "rgba(255, 255, 255, 0.06)",
-            color: activeTab === "settings" ? "#ffffff" : "#8b929a",
+            background: activeTab === "settings" ? "#1a9fff" : "rgba(255, 255, 255, 0.08)",
+            color: activeTab === "settings" ? "#ffffff" : "#c9d1d9",
           }}
         >
           <FaCog /> Settings
@@ -310,6 +376,7 @@ export function QuickAccessPanel() {
                       >
                         {/* Primary Sync button */}
                         <DialogButton
+                          className="decky-unison-btn"
                           onClick={() => handleSyncGame(prof)}
                           disabled={isSyncing}
                           style={{
@@ -332,6 +399,7 @@ export function QuickAccessPanel() {
 
                         {/* Compact Config Icon Button */}
                         <DialogButton
+                          className="decky-unison-btn"
                           onClick={() => openProfileConfig(matchingGame, prof)}
                           style={{
                             width: "36px",
@@ -342,6 +410,8 @@ export function QuickAccessPanel() {
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: "13px",
+                            background: "rgba(255, 255, 255, 0.08)",
+                            color: "#c9d1d9",
                           }}
                         >
                           <FaCog />
@@ -350,6 +420,7 @@ export function QuickAccessPanel() {
                         {/* Compact Log Icon Button */}
                         {prof.last_synced && (
                           <DialogButton
+                            className="decky-unison-btn"
                             onClick={() => openLogForProfile(prof.id!, prof.game_name)}
                             style={{
                               width: "36px",
@@ -360,7 +431,8 @@ export function QuickAccessPanel() {
                               alignItems: "center",
                               justifyContent: "center",
                               fontSize: "13px",
-                              color: prof.last_status === "error" ? "#e74c3c" : undefined,
+                              background: "rgba(255, 255, 255, 0.08)",
+                              color: prof.last_status === "error" ? "#e74c3c" : "#c9d1d9",
                             }}
                           >
                             <FaFileAlt />
@@ -380,41 +452,40 @@ export function QuickAccessPanel() {
             )}
           </PanelSection>
 
-          {/* Available Non-Steam Games to Initialize */}
+          {/* Available Non-Steam Games to Initialize - Using native Field for reliable layout */}
           <PanelSection title="Non-Steam Games Detected">
             {unconfiguredGames.length > 0 ? (
               unconfiguredGames.map((game) => (
                 <PanelSectionRow key={game.app_id}>
-                  <Focusable
-                    flow-children="horizontal"
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "4px 0",
-                      width: "100%",
-                      gap: "8px",
-                    }}
-                  >
-                    <div style={{ flex: 1, overflow: "hidden" }}>
+                  <Field
+                    label={
                       <div
                         style={{
-                          fontSize: "12px",
+                          color: "#ffffff",
                           fontWeight: "bold",
-                          whiteSpace: "nowrap",
+                          fontSize: "12px",
                           overflow: "hidden",
                           textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
+                        title={game.name}
                       >
                         {game.name}
                       </div>
-                      <div style={{ fontSize: "10px", color: "#8b929a" }}>AppID: {game.app_id}</div>
-                    </div>
+                    }
+                    description={
+                      <div style={{ color: "#8b929a", fontSize: "10px" }}>
+                        AppID: {game.app_id}
+                      </div>
+                    }
+                  >
                     <DialogButton
+                      className="decky-unison-btn"
                       onClick={() => openProfileConfig(game)}
                       style={{
-                        height: "30px",
-                        minWidth: "64px",
+                        height: "28px",
+                        minWidth: "60px",
+                        width: "auto",
                         padding: "0 10px",
                         display: "flex",
                         alignItems: "center",
@@ -422,11 +493,12 @@ export function QuickAccessPanel() {
                         gap: "5px",
                         fontSize: "11px",
                         whiteSpace: "nowrap",
+                        flexShrink: 0,
                       }}
                     >
                       <FaPlus /> Init
                     </DialogButton>
-                  </Focusable>
+                  </Field>
                 </PanelSectionRow>
               ))
             ) : (
@@ -461,8 +533,10 @@ export function QuickAccessPanel() {
               history.slice(0, 5).map((item, idx) => (
                 <PanelSectionRow key={idx}>
                   <Focusable
+                    focusClassName="focused"
                     onActivate={() => openLogModal(item)}
                     onClick={() => openLogModal(item)}
+                    className="decky-unison-card"
                     style={{
                       fontSize: "11px",
                       display: "flex",
@@ -475,11 +549,11 @@ export function QuickAccessPanel() {
                       background: "rgba(255, 255, 255, 0.04)",
                     }}
                   >
-                    <div style={{ flex: 1, overflow: "hidden" }}>
-                      <span style={{ fontWeight: "bold" }}>{item.game_name}</span>
+                    <div style={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
+                      <span style={{ fontWeight: "bold", color: "#ffffff" }}>{item.game_name}</span>
                       <span style={{ color: "#8b929a", marginLeft: "6px" }}>({formatTime(item.timestamp)})</span>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
                       <span style={{ color: item.success ? "#2ecc71" : "#e74c3c" }}>
                         {item.direction_label || item.status}
                       </span>
@@ -498,6 +572,6 @@ export function QuickAccessPanel() {
           </PanelSection>
         </>
       )}
-    </>
+    </div>
   );
 }

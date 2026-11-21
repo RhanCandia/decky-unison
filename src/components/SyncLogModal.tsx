@@ -51,6 +51,7 @@ export function SyncLogModal({ log, closeModal }: SyncLogModalProps) {
       </DialogSubHeader>
 
       <DialogBody>
+        <div className="decky-unison-root">
         {/* Diagnostic tips for exit code 3 */}
         {isExitCode3 && (
           <DialogControlsSection>
@@ -129,6 +130,7 @@ export function SyncLogModal({ log, closeModal }: SyncLogModalProps) {
             {log.raw_output || log.details || "No terminal output recorded."}
           </Focusable>
         </DialogControlsSection>
+        </div>
       </DialogBody>
 
       <DialogFooter>
