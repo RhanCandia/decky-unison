@@ -1,0 +1,73 @@
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install Frontend Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Frontend
+        run: pnpm run build
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run Backend Unit Tests
+        run: |
+          python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Package Plugin Archive
+        run: |
+          mkdir -p build/decky-unison
+          cp -r bin dist backend main.py package.json plugin.json README.md LICENSE build/decky-unison/
+          
+          # Clean up developer/source files from backend in release bundle
+          rm -rf build/decky-unison/backend/__pycache__ \
+                 build/decky-unison/backend/*.c \
+                 build/decky-unison/backend/Dockerfile \
+                 build/decky-unison/backend/Makefile \
+                 build/decky-unison/backend/entrypoint.sh \
+                 build/decky-unison/backend/src
+          
+          # Ensure execution permissions for Unison binaries
+          chmod +x build/decky-unison/bin/*
+          
+          cd build
+          zip -r ../decky-unison.zip decky-unison
+          cd ..
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: decky-unison.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
