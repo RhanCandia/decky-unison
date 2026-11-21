@@ -30,12 +30,23 @@ export function GameProfileModal({
   closeModal,
   onSaved,
 }: GameProfileModalProps) {
+  const selectedRemote = remotes.find((r) => r.id === (existingProfile?.remote_id || remotes[0]?.id));
+  const remoteUser = selectedRemote?.user || "";
+  const sanitizedGameName = game.name.replace(/[/\\?%*:|"<>]/g, "_");
+  const suggestedAbsPath = remoteUser
+    ? `/home/${remoteUser}/saves/${sanitizedGameName}`
+    : `/home/username/saves/${sanitizedGameName}`;
+
   const [localPath, setLocalPath] = useState<string>(existingProfile?.local_path || "");
   const [remoteId, setRemoteId] = useState<string>(
     existingProfile?.remote_id || (remotes.length > 0 ? remotes[0].id || "" : "")
   );
   const [remotePath, setRemotePath] = useState<string>(
-    existingProfile?.remote_path || `~/saves/${game.name.replace(/[/\\?%*:|"<>]/g, "_")}`
+    existingProfile?.remote_path
+      ? (existingProfile.remote_path.startsWith("~/")
+          ? existingProfile.remote_path.replace(/^~\//, remoteUser ? `/home/${remoteUser}/` : "/home/user/")
+          : existingProfile.remote_path)
+      : suggestedAbsPath
   );
   const [candidates, setCandidates] = useState<SaveCandidate[]>([]);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
@@ -185,7 +196,8 @@ export function GameProfileModal({
           )}
 
           <TextField
-            label="Remote Destination Directory"
+            label="Remote Destination Directory (Absolute Path)"
+            description="Must be an absolute path (e.g. /home/username/saves/Game or C:/Games/Saves/Game). Unison does not support '~/'."
             value={remotePath}
             onChange={(e) => setRemotePath(e.target.value)}
           />

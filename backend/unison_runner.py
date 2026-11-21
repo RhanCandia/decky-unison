@@ -37,24 +37,49 @@ class UnisonRunner:
         Builds the complete CLI argument list for Unison execution.
         """
         opts = options or {}
-        local_abs = os.path.abspath(local_path)
+        local_abs = os.path.abspath(os.path.expanduser(local_path))
 
         # Construct Remote Root
         remote_type = remote_config.get("type", "ssh")
+        clean_remote_path = remote_path.strip()
+
         if remote_type == "local":
-            remote_root = os.path.abspath(remote_path)
+            remote_root = os.path.abspath(os.path.expanduser(clean_remote_path))
         elif remote_type == "socket":
             host = remote_config.get("host", "").strip()
             port = remote_config.get("port", 26867)
-            # Unison socket syntax: socket://host:port//absolute/path
-            remote_root = f"socket://{host}:{port}/{remote_path}"
+            if clean_remote_path.startswith("~/"):
+                clean_remote_path = clean_remote_path[2:]
+            path_part = "/" + clean_remote_path if clean_remote_path.startswith("/") else "//" + clean_remote_path
+            remote_root = f"socket://{host}:{port}{path_part}"
         else:  # ssh
             user = remote_config.get("user", "").strip()
             host = remote_config.get("host", "").strip()
             user_host = f"{user}@{host}" if user else host
-            # Unison ssh syntax: ssh://user@host//path or ssh://user@host:port//path
             port = remote_config.get("port", 22)
-            remote_root = f"ssh://{user_host}:{port}/{remote_path}" if port != 22 else f"ssh://{user_host}/{remote_path}"
+
+            # Expand ~/ if user is known, otherwise strip ~ for relative home path
+            if clean_remote_path.startswith("~/"):
+                if user:
+                    clean_remote_path = f"/home/{user}/{clean_remote_path[2:]}"
+                else:
+                    clean_remote_path = clean_remote_path[2:]
+
+            # Unison SSH Syntax:
+            # Absolute path /foo becomes ssh://host//foo (two slashes)
+            # Windows drive C:/foo becomes ssh://host//C:/foo
+            # Relative path foo becomes ssh://host/foo (one slash)
+            if clean_remote_path.startswith("/"):
+                path_part = "/" + clean_remote_path
+            elif len(clean_remote_path) >= 2 and clean_remote_path[1] == ":":
+                path_part = "//" + clean_remote_path
+            else:
+                path_part = "/" + clean_remote_path
+
+            if port != 22:
+                remote_root = f"ssh://{user_host}:{port}{path_part}"
+            else:
+                remote_root = f"ssh://{user_host}{path_part}"
 
         args = [
             self.bin_path,

@@ -125,6 +125,24 @@ class TestDeckyUnisonBackend(unittest.TestCase):
         self.assertIn("-servercmd /usr/local/bin/unison", args_str)
         self.assertIn("-ignore Name *.tmp", args_str)
 
+        # Test absolute path formatting
+        abs_args = runner.build_unison_args(
+            local_path="/home/deck/save",
+            remote_config=remote_ssh,
+            remote_path="/var/saves/game",
+            options=options
+        )
+        self.assertIn("ssh://deck@server.local//var/saves/game", " ".join(abs_args))
+
+        # Test ~/ expansion with user
+        tilde_args = runner.build_unison_args(
+            local_path="/home/deck/save",
+            remote_config=remote_ssh,
+            remote_path="~/saves/game",
+            options=options
+        )
+        self.assertIn("ssh://deck@server.local//home/deck/saves/game", " ".join(tilde_args))
+
     def test_ssh_config_parsing_and_resolution(self):
         ssh_config_path = os.path.join(self.test_dir, ".ssh", "config")
         os.makedirs(os.path.dirname(ssh_config_path), exist_ok=True)
