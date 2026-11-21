@@ -135,9 +135,12 @@ class TestDeckyUnisonBackend(unittest.TestCase):
         with open(os.path.join(replica_a, "game.sav"), "w") as f:
             f.write("version 1")
 
-        runner = UnisonRunner(self.plugin_dir, self.settings_dir)
-        # Point to system unison binary for testing
-        runner.bin_path = "/usr/bin/unison"
+        runner = UnisonRunner(os.path.abspath("."), self.settings_dir)
+        # Use bundled binary if available, or system binary
+        if not os.path.exists(runner.bin_path):
+            bundled = os.path.abspath("bin/unison")
+            if os.path.exists(bundled):
+                runner.bin_path = bundled
 
         remote_local = {
             "type": "local"
