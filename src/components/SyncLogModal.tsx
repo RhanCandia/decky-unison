@@ -134,10 +134,18 @@ export function SyncLogModal({ log, closeModal }: SyncLogModalProps) {
       </DialogBody>
 
       <DialogFooter>
-        <DialogButtonPrimary onClick={handleCopy} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}>
+        <DialogButtonPrimary
+          onClick={handleCopy}
+          className="decky-unison-btn-compact"
+          style={{ height: "36px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+        >
           <FaCopy /> {copied ? "Copied to Clipboard!" : "Copy Full Log"}
         </DialogButtonPrimary>
-        <DialogButtonSecondary onClick={closeModal}>
+        <DialogButtonSecondary
+          onClick={closeModal}
+          className="decky-unison-btn-compact"
+          style={{ height: "36px" }}
+        >
           Close
         </DialogButtonSecondary>
       </DialogFooter>

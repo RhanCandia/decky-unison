@@ -131,225 +131,196 @@ export function GameProfileModal({
       </DialogSubHeader>
 
       <DialogBody>
-        <div className="decky-unison-root">
-        {/* Section 1: Local Save Directory on Steam Deck */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Local Save Directory (Steam Deck)</DialogControlsSectionHeader>
-          <TextField
-            label="Path on Deck"
-            description="Directory containing save files for this game"
-            value={localPath}
-            onChange={(e) => setLocalPath(e.target.value)}
-          />
-          <DialogButton
-            onClick={handleOpenBrowser}
-            style={{
-              marginTop: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "8px",
-            }}
-          >
-            <FaFolderOpen /> Browse Steam Deck Folders...
-          </DialogButton>
-
-          {/* Save candidates list */}
-          {candidates.length > 0 && (
-            <div style={{ marginTop: "12px" }}>
-              <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "6px" }}>
-                Auto-Detected Save Folders:
-              </div>
-              <Focusable
-                flow-children="vertical"
-                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
-              >
-                {candidates.slice(0, 3).map((c, idx) => (
-                  <DialogButton
-                    key={idx}
-                    onClick={() => setLocalPath(c.path)}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      padding: "8px 12px",
-                      height: "auto",
-                      minWidth: "auto",
-                      background: c.is_recommended ? "rgba(103, 193, 245, 0.15)" : undefined,
-                      border: c.is_recommended ? "1px solid rgba(103, 193, 245, 0.5)" : undefined,
-                    }}
-                  >
-                    <div style={{ textAlign: "left", flex: 1, overflow: "hidden" }}>
-                      <div
-                        style={{
-                          fontWeight: c.is_recommended ? "bold" : "normal",
-                          fontSize: "12px",
-                          color: c.is_recommended ? "#67c1f5" : "#fff",
-                        }}
-                      >
-                        {c.is_recommended ? "⭐ " : ""}{c.label}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "10px",
-                          color: "#8b929a",
-                          textOverflow: "ellipsis",
-                          overflow: "hidden",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {c.path}
-                      </div>
-                    </div>
-                    <span style={{ fontSize: "10px", color: "#67c1f5", marginLeft: "8px", whiteSpace: "nowrap" }}>
-                      Use this
-                    </span>
-                  </DialogButton>
-                ))}
-              </Focusable>
-            </div>
-          )}
-        </DialogControlsSection>
-
-        {/* Section 2: Remote Target Server */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Remote Target Server</DialogControlsSectionHeader>
-          {remotes.length > 0 ? (
-            <DropdownItem
-              label="Sync Target"
-              description="Configured remote or central server"
-              rgOptions={remotes.map((r) => ({
-                label: `${r.name} (${r.type.toUpperCase()})`,
-                data: r.id!,
-              }))}
-              selectedOption={remoteId}
-              onChange={(opt) => {
-                setRemoteId(opt.data);
-                const found = remotes.find((r) => r.id === opt.data);
-                if (found?.user && remotePath.includes("/home/")) {
-                  setRemotePath(`/home/${found.user}/saves/${sanitizedGameName}`);
-                }
-              }}
-            />
-          ) : (
-            <div style={{ fontSize: "12px", color: "#e74c3c", padding: "6px 0" }}>
-              ⚠️ No remotes configured yet. Please add a remote in Settings first.
-            </div>
-          )}
-
-          <TextField
-            label="Remote Destination Directory (Absolute Path)"
-            description="Absolute path on the server (e.g. /home/user/saves/GameName or C:/Games/Saves/GameName). Note: Unison requires absolute paths without '~/'."
-            value={remotePath}
-            onChange={(e) => setRemotePath(e.target.value)}
-          />
-        </DialogControlsSection>
-
-        {/* Section 3: Conflict Policy & Advanced Options Toggle */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Synchronization Policy</DialogControlsSectionHeader>
-          <DropdownItem
-            label="Conflict Resolution (-prefer)"
-            description="Policy when files are changed on both Steam Deck and Server"
-            rgOptions={[
-              { label: "Newer File Wins (prefer newer)", data: "newer" },
-              { label: "Steam Deck Overwrites Remote (prefer deck)", data: "root1" },
-              { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
-            ]}
-            selectedOption={prefer}
-            onChange={(opt) => setPrefer(opt.data as any)}
-          />
-
-          <DialogButton
-            onClick={() => setShowAdvanced(!showAdvanced)}
-            style={{
-              marginTop: "8px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: "6px",
-              fontSize: "12px",
-            }}
-          >
-            <FaCog /> {showAdvanced ? "Hide Advanced Unison Options" : "Show Advanced Unison Options"}
-          </DialogButton>
-        </DialogControlsSection>
-
-        {/* Section 4: Advanced CLI Options */}
-        {showAdvanced && (
+        <div className="decky-unison-root" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {/* Section 1: Local Save Directory on Steam Deck */}
           <DialogControlsSection>
-            <DialogControlsSectionHeader>Advanced Unison CLI Options</DialogControlsSectionHeader>
-            <ToggleField
-              label="Versioned Backups (-backup)"
-              description="Preserve previous file versions before overwriting"
-              checked={backup}
-              onChange={(val) => setBackup(val)}
-            />
-
-            {backup && (
-              <TextField
-                label="Max Backups to Retain (-maxbackups)"
-                description="Number of versions to keep per file"
-                value={String(maxbackups)}
-                onChange={(e) => setMaxbackups(Number(e.target.value))}
-              />
-            )}
-
-            <ToggleField
-              label="Batch Mode (-batch)"
-              description="Non-interactive execution without terminal questions"
-              checked={batch}
-              onChange={(val) => setBatch(val)}
-            />
-
-            <ToggleField
-              label="Automatic Acceptance (-auto)"
-              description="Automatically accept non-conflicting actions"
-              checked={auto}
-              onChange={(val) => setAuto(val)}
-            />
-
-            <ToggleField
-              label="Confirm Big Deletions (-confirmbigdel)"
-              description="Safeguard against mass deletion of save files"
-              checked={confirmbigdel}
-              onChange={(val) => setConfirmbigdel(val)}
-            />
-
-            <ToggleField
-              label="Preserve Timestamps (-times)"
-              description="Synchronize file modification timestamps"
-              checked={times}
-              onChange={(val) => setTimes(val)}
-            />
+            <DialogControlsSectionHeader>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                <span>Local Save Directory</span>
+                <DialogButton
+                  className="decky-unison-btn-compact"
+                  onClick={handleOpenBrowser}
+                  style={{ height: "26px", fontSize: "11px", padding: "0 8px" }}
+                >
+                  <FaFolderOpen /> Browse...
+                </DialogButton>
+              </div>
+            </DialogControlsSectionHeader>
 
             <TextField
-              label="Extra Custom CLI Flags"
-              description="Additional arguments passed directly to unison"
-              value={extraArgs}
-              onChange={(e) => setExtraArgs(e.target.value)}
+              label="Save Path on Steam Deck"
+              description="Folder containing save files"
+              value={localPath}
+              onChange={(e) => setLocalPath(e.target.value)}
+            />
+
+            {/* Save candidates as compact pill buttons */}
+            {candidates.length > 0 && (
+              <div style={{ marginTop: "4px" }}>
+                <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "4px" }}>
+                  Detected Save Locations:
+                </div>
+                <Focusable flow-children="horizontal" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {candidates.slice(0, 3).map((c, idx) => (
+                    <DialogButton
+                      key={idx}
+                      className="decky-unison-chip"
+                      style={{
+                        background: localPath === c.path ? "rgba(103, 193, 245, 0.3)" : "rgba(255, 255, 255, 0.08)",
+                        border: c.is_recommended ? "1px solid #67c1f5" : undefined,
+                        color: c.is_recommended ? "#67c1f5" : "#fff",
+                      }}
+                      onClick={() => setLocalPath(c.path)}
+                    >
+                      {c.is_recommended ? "⭐ " : ""}{c.label}
+                    </DialogButton>
+                  ))}
+                </Focusable>
+              </div>
+            )}
+          </DialogControlsSection>
+
+          {/* Section 2: Remote Target Server */}
+          <DialogControlsSection>
+            <DialogControlsSectionHeader>Remote Destination</DialogControlsSectionHeader>
+            {remotes.length > 0 ? (
+              <DropdownItem
+                label="Target Server"
+                rgOptions={remotes.map((r) => ({
+                  label: `${r.name} (${r.type.toUpperCase()})`,
+                  data: r.id!,
+                }))}
+                selectedOption={remoteId}
+                onChange={(opt) => {
+                  setRemoteId(opt.data);
+                  const found = remotes.find((r) => r.id === opt.data);
+                  if (found?.user && remotePath.includes("/home/")) {
+                    setRemotePath(`/home/${found.user}/saves/${sanitizedGameName}`);
+                  }
+                }}
+              />
+            ) : (
+              <div style={{ fontSize: "12px", color: "#e74c3c", padding: "4px 0" }}>
+                ⚠️ No remotes configured yet. Add a remote in Settings first.
+              </div>
+            )}
+
+            <TextField
+              label="Remote Directory (Absolute Path)"
+              description="e.g. /home/user/saves/GameName (no '~/' allowed)"
+              value={remotePath}
+              onChange={(e) => setRemotePath(e.target.value)}
             />
           </DialogControlsSection>
-        )}
+
+          {/* Section 3: Sync Policy & Collapsible Advanced Options */}
+          <DialogControlsSection>
+            <DialogControlsSectionHeader>Sync Policy</DialogControlsSectionHeader>
+            <DropdownItem
+              label="Conflict Resolution (-prefer)"
+              description="Policy when files change on both Deck and Server"
+              rgOptions={[
+                { label: "Newer File Wins (prefer newer)", data: "newer" },
+                { label: "Steam Deck Overwrites Remote (prefer deck)", data: "root1" },
+                { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
+              ]}
+              selectedOption={prefer}
+              onChange={(opt) => setPrefer(opt.data as any)}
+            />
+
+            <div style={{ marginTop: "6px" }}>
+              <DialogButton
+                className="decky-unison-btn-compact"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+              >
+                <FaCog /> {showAdvanced ? "Hide Advanced Options" : "Advanced Options (Backups, Times...)"}
+              </DialogButton>
+
+              {showAdvanced && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    background: "rgba(0, 0, 0, 0.25)",
+                    padding: "10px",
+                    borderRadius: "6px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "6px",
+                  }}
+                >
+                  <ToggleField
+                    label="Versioned Backups (-backup)"
+                    description="Keep previous copies before overwriting"
+                    checked={backup}
+                    onChange={(val) => setBackup(val)}
+                  />
+
+                  {backup && (
+                    <TextField
+                      label="Max Backups (-maxbackups)"
+                      value={String(maxbackups)}
+                      onChange={(e) => setMaxbackups(Number(e.target.value))}
+                    />
+                  )}
+
+                  <ToggleField
+                    label="Batch Mode (-batch)"
+                    description="Non-interactive execution"
+                    checked={batch}
+                    onChange={(val) => setBatch(val)}
+                  />
+
+                  <ToggleField
+                    label="Automatic Acceptance (-auto)"
+                    description="Automatically accept non-conflicts"
+                    checked={auto}
+                    onChange={(val) => setAuto(val)}
+                  />
+
+                  <ToggleField
+                    label="Confirm Big Deletions (-confirmbigdel)"
+                    description="Safeguard against mass file deletion"
+                    checked={confirmbigdel}
+                    onChange={(val) => setConfirmbigdel(val)}
+                  />
+
+                  <ToggleField
+                    label="Preserve Timestamps (-times)"
+                    description="Synchronize file timestamps"
+                    checked={times}
+                    onChange={(val) => setTimes(val)}
+                  />
+
+                  <TextField
+                    label="Extra Custom CLI Flags"
+                    value={extraArgs}
+                    onChange={(e) => setExtraArgs(e.target.value)}
+                  />
+                </div>
+              )}
+            </div>
+          </DialogControlsSection>
         </div>
       </DialogBody>
 
       <DialogFooter>
         <DialogButtonPrimary
           onClick={handleSave}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+          className="decky-unison-btn-compact"
+          style={{ height: "36px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
         >
           <FaCheck /> Save Configuration
         </DialogButtonPrimary>
         {existingProfile?.id && (
           <DialogButton
             onClick={handleDelete}
-            style={{ color: "#e74c3c", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+            className="decky-unison-btn-compact"
+            style={{ color: "#e74c3c", height: "36px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
           >
             <FaTrash /> Delete Profile
           </DialogButton>
         )}
-        <DialogButtonSecondary onClick={closeModal}>
+        <DialogButtonSecondary onClick={closeModal} className="decky-unison-btn-compact" style={{ height: "36px" }}>
           Cancel
         </DialogButtonSecondary>
       </DialogFooter>

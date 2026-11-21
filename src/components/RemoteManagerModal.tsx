@@ -16,7 +16,7 @@ import {
 import { useState, useEffect } from "react";
 import { getRemotes, saveRemote, testRemote, getSSHKey, getSSHConfigHosts, deleteRemote } from "../api";
 import { RemoteConfig, TestResult, SSHKeyInfo, SSHConfigHost } from "../types";
-import { FaServer, FaCheckCircle, FaExclamationTriangle, FaKey, FaBook, FaTrash } from "react-icons/fa";
+import { FaServer, FaCheckCircle, FaExclamationTriangle, FaKey, FaBook, FaTrash, FaCog } from "react-icons/fa";
 
 interface RemoteManagerModalProps {
   closeModal?: () => void;
@@ -40,6 +40,8 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [sshKeyInfo, setSshKeyInfo] = useState<SSHKeyInfo | null>(null);
   const [copiedKey, setCopiedKey] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+  const [showSSHKey, setShowSSHKey] = useState<boolean>(false);
 
   const loadData = async () => {
     try {
@@ -78,7 +80,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
 
   const resetFormForNew = () => {
     setSelectedRemoteId("");
-    setName("New Remote Server");
+    setName("New Server");
     setType("ssh");
     setHost("");
     setPort(22);
@@ -160,225 +162,262 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
 
   return (
     <ModalRoot onCancel={closeModal}>
-      <DialogHeader>Manage Remotes & Central Server</DialogHeader>
-      <DialogSubHeader>Configure SSH, Socket, or Local sync destinations</DialogSubHeader>
+      <DialogHeader>Manage Remotes</DialogHeader>
+      <DialogSubHeader>Configure sync servers, network devices, and SSH keys</DialogSubHeader>
 
       <DialogBody>
-        <div className="decky-unison-root">
-        {/* Remote Selector & Add Button */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Active Remote</DialogControlsSectionHeader>
-          <DropdownItem
-            label="Select Configured Remote"
-            rgOptions={[
-              ...remotes.map((r) => ({
-                label: `${r.name} (${r.type.toUpperCase()})`,
-                data: r.id!,
-              })),
-              { label: "+ Add New Remote...", data: "new" },
-            ]}
-            selectedOption={selectedRemoteId || "new"}
-            onChange={(opt) => {
-              if (opt.data === "new") {
-                resetFormForNew();
-              } else {
-                const found = remotes.find((r) => r.id === opt.data);
-                if (found) loadRemoteIntoForm(found);
-              }
-            }}
-          />
-        </DialogControlsSection>
-
-        {/* SSH Config Host presets helper */}
-        {sshConfigHosts.length > 0 && type === "ssh" && (
+        <div className="decky-unison-root" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {/* Section 1: Remote Profile & Identification */}
           <DialogControlsSection>
             <DialogControlsSectionHeader>
-              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <FaBook style={{ color: "#67c1f5" }} /> Auto-Detected From ~/.ssh/config
-              </span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                <span>Remote Profile</span>
+                {selectedRemoteId && (
+                  <DialogButton
+                    className="decky-unison-btn-compact"
+                    onClick={handleDelete}
+                    style={{ color: "#e74c3c", height: "26px", fontSize: "11px", padding: "0 8px" }}
+                  >
+                    <FaTrash /> Delete Profile
+                  </DialogButton>
+                )}
+              </div>
             </DialogControlsSectionHeader>
-            <Focusable flow-children="horizontal" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-              {sshConfigHosts.map((h, idx) => (
-                <DialogButton
-                  key={idx}
-                  style={{
-                    fontSize: "11px",
-                    padding: "6px 10px",
-                    height: "auto",
-                    minWidth: "auto",
-                    background: host === h.alias ? "#1a9fff" : undefined,
-                  }}
-                  onClick={() => applySSHConfigHost(h)}
-                >
-                  {h.alias} {h.hostname ? `(${h.hostname})` : ""}
-                </DialogButton>
-              ))}
-            </Focusable>
+
+            {remotes.length > 0 && (
+              <DropdownItem
+                label="Selected Remote"
+                rgOptions={[
+                  ...remotes.map((r) => ({
+                    label: `${r.name} (${r.type.toUpperCase()})`,
+                    data: r.id!,
+                  })),
+                  { label: "+ Add New Remote...", data: "new" },
+                ]}
+                selectedOption={selectedRemoteId || "new"}
+                onChange={(opt) => {
+                  if (opt.data === "new") {
+                    resetFormForNew();
+                  } else {
+                    const found = remotes.find((r) => r.id === opt.data);
+                    if (found) loadRemoteIntoForm(found);
+                  }
+                }}
+              />
+            )}
+
+            <TextField
+              label="Profile Name"
+              description="A friendly label for this remote device or server"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+
+            <DropdownItem
+              label="Protocol"
+              rgOptions={[
+                { label: "SSH (Central Server / ~/.ssh/config alias)", data: "ssh" },
+                { label: "Unison Socket (Direct TCP socket://)", data: "socket" },
+                { label: "Local Directory (Mounted SMB/NFS share)", data: "local" },
+              ]}
+              selectedOption={type}
+              onChange={(opt) => {
+                const newType = opt.data as "ssh" | "socket" | "local";
+                setType(newType);
+                if (newType === "socket" && port === 22) setPort(26867);
+                if (newType === "ssh" && port === 26867) setPort(22);
+              }}
+            />
           </DialogControlsSection>
-        )}
 
-        {/* Remote Identification */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Remote Configuration</DialogControlsSectionHeader>
-          <TextField
-            label="Remote Display Name"
-            description="A friendly label for this device or server"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-
-          <DropdownItem
-            label="Connection Protocol"
-            rgOptions={[
-              { label: "SSH (Central Server / ~/.ssh/config alias)", data: "ssh" },
-              { label: "Unison Socket (Direct TCP socket://)", data: "socket" },
-              { label: "Local Directory (Mounted SMB/NFS share)", data: "local" },
-            ]}
-            selectedOption={type}
-            onChange={(opt) => {
-              const newType = opt.data as "ssh" | "socket" | "local";
-              setType(newType);
-              if (newType === "socket" && port === 22) setPort(26867);
-              if (newType === "ssh" && port === 26867) setPort(22);
-            }}
-          />
-        </DialogControlsSection>
-
-        {/* Connection Details */}
-        {type !== "local" ? (
+          {/* Section 2: Connection Endpoint */}
           <DialogControlsSection>
-            <DialogControlsSectionHeader>Endpoint Details</DialogControlsSectionHeader>
-            <TextField
-              label="Host / IP / ~/.ssh/config Alias"
-              description="Enter your server address, IP, or host alias from ~/.ssh/config"
-              value={host}
-              onChange={(e) => setHost(e.target.value)}
-            />
-            <TextField
-              label="Port"
-              description={type === "ssh" ? "SSH Port (default: 22)" : "Unison Socket Port (default: 26867)"}
-              value={String(port)}
-              onChange={(e) => setPort(Number(e.target.value))}
-            />
-            {type === "ssh" && (
+            <DialogControlsSectionHeader>Endpoint & Verification</DialogControlsSectionHeader>
+
+            {type !== "local" ? (
               <>
+                {/* SSH Config Host presets helper */}
+                {sshConfigHosts.length > 0 && type === "ssh" && (
+                  <div style={{ marginBottom: "6px" }}>
+                    <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "4px", display: "flex", alignItems: "center", gap: "4px" }}>
+                      <FaBook style={{ color: "#67c1f5" }} /> Quick Fill from ~/.ssh/config:
+                    </div>
+                    <Focusable flow-children="horizontal" style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {sshConfigHosts.map((h, idx) => (
+                        <DialogButton
+                          key={idx}
+                          className="decky-unison-chip"
+                          style={{
+                            background: host === h.alias ? "#1a9fff" : "rgba(255, 255, 255, 0.08)",
+                            color: host === h.alias ? "#ffffff" : "#c9d1d9",
+                          }}
+                          onClick={() => applySSHConfigHost(h)}
+                        >
+                          {h.alias}
+                        </DialogButton>
+                      ))}
+                    </Focusable>
+                  </div>
+                )}
+
                 <TextField
-                  label="Username"
-                  description="Optional if defined in ~/.ssh/config"
-                  value={user}
-                  onChange={(e) => setUser(e.target.value)}
+                  label="Host / IP / SSH Alias"
+                  description="Hostname, IP address, or ~/.ssh/config alias"
+                  value={host}
+                  onChange={(e) => setHost(e.target.value)}
                 />
-                <TextField
-                  label="Identity File Path"
-                  description="Optional if using standard key or configured in ~/.ssh/config"
-                  value={keyPath}
-                  onChange={(e) => setKeyPath(e.target.value)}
-                />
-                <TextField
-                  label="Remote Unison Executable"
-                  description="Default: 'unison'. Specify full path if not in remote SSH PATH"
-                  value={remoteUnisonPath}
-                  onChange={(e) => setRemoteUnisonPath(e.target.value)}
-                />
+
+                {/* Inline Test Connection button & status */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px", flexWrap: "wrap" }}>
+                  <DialogButton
+                    className="decky-unison-btn-compact"
+                    onClick={handleTest}
+                    disabled={testing}
+                    style={{ background: "#2ecc71", color: "#ffffff" }}
+                  >
+                    <FaServer /> {testing ? "Verifying..." : "Test Connection"}
+                  </DialogButton>
+
+                  {testResult && (
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: testResult.success ? "#2ecc71" : "#e74c3c",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {testResult.success ? <FaCheckCircle /> : <FaExclamationTriangle />}
+                      <span>{testResult.message}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Collapsible Advanced SSH Fields */}
+                <div style={{ marginTop: "10px" }}>
+                  <DialogButton
+                    className="decky-unison-btn-compact"
+                    onClick={() => setShowAdvanced(!showAdvanced)}
+                  >
+                    <FaCog /> {showAdvanced ? "Hide Advanced Settings" : "Advanced Settings (Port, User, Key...)"}
+                  </DialogButton>
+
+                  {showAdvanced && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        background: "rgba(0, 0, 0, 0.25)",
+                        padding: "10px",
+                        borderRadius: "6px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}
+                    >
+                      <TextField
+                        label="Port"
+                        description={type === "ssh" ? "Default: 22" : "Default: 26867"}
+                        value={String(port)}
+                        onChange={(e) => setPort(Number(e.target.value))}
+                      />
+                      {type === "ssh" && (
+                        <>
+                          <TextField
+                            label="Username"
+                            description="Optional if configured in ~/.ssh/config"
+                            value={user}
+                            onChange={(e) => setUser(e.target.value)}
+                          />
+                          <TextField
+                            label="Identity File Path"
+                            description="Optional if using standard key or ~/.ssh/config"
+                            value={keyPath}
+                            onChange={(e) => setKeyPath(e.target.value)}
+                          />
+                          <TextField
+                            label="Remote Unison Executable"
+                            description="Default: 'unison'. Specify full path if not in remote PATH"
+                            value={remoteUnisonPath}
+                            onChange={(e) => setRemoteUnisonPath(e.target.value)}
+                          />
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </>
+            ) : (
+              <TextField
+                label="Local Share Directory"
+                description="Absolute path to mounted folder or share"
+                value={localPath}
+                onChange={(e) => setLocalPath(e.target.value)}
+              />
             )}
           </DialogControlsSection>
-        ) : (
-          <DialogControlsSection>
-            <DialogControlsSectionHeader>Local Mounted Share</DialogControlsSectionHeader>
-            <TextField
-              label="Local Share Directory"
-              description="Absolute filesystem path to your mounted share or folder"
-              value={localPath}
-              onChange={(e) => setLocalPath(e.target.value)}
-            />
-          </DialogControlsSection>
-        )}
 
-        {/* Test Connection Section */}
-        <DialogControlsSection>
-          <DialogControlsSectionHeader>Connection Verification</DialogControlsSectionHeader>
-          <DialogButton
-            onClick={handleTest}
-            disabled={testing}
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-          >
-            <FaServer /> {testing ? "Verifying Remote & Unison..." : "Test Connection"}
-          </DialogButton>
+          {/* Section 3: Steam Deck Public SSH Key (Collapsible) */}
+          {type === "ssh" && sshKeyInfo && (
+            <DialogControlsSection>
+              <DialogControlsSectionHeader>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <FaKey style={{ color: "#67c1f5" }} /> Steam Deck Public SSH Key
+                  </span>
+                  <DialogButton
+                    className="decky-unison-btn-compact"
+                    onClick={() => setShowSSHKey(!showSSHKey)}
+                    style={{ height: "26px", fontSize: "11px", padding: "0 8px" }}
+                  >
+                    {showSSHKey ? "Hide Key" : "View Key"}
+                  </DialogButton>
+                </div>
+              </DialogControlsSectionHeader>
 
-          {testResult && (
-            <div
-              style={{
-                marginTop: "8px",
-                padding: "10px 12px",
-                borderRadius: "6px",
-                fontSize: "12px",
-                display: "flex",
-                alignItems: "flex-start",
-                gap: "8px",
-                background: testResult.success ? "rgba(46, 204, 113, 0.15)" : "rgba(231, 76, 60, 0.15)",
-                border: testResult.success ? "1px solid rgba(46, 204, 113, 0.3)" : "1px solid rgba(231, 76, 60, 0.3)",
-                color: testResult.success ? "#2ecc71" : "#e74c3c",
-              }}
-            >
-              <div style={{ marginTop: "2px" }}>
-                {testResult.success ? <FaCheckCircle /> : <FaExclamationTriangle />}
-              </div>
-              <div style={{ flex: 1, lineHeight: "1.4" }}>{testResult.message}</div>
-            </div>
+              {showSSHKey ? (
+                <div>
+                  <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "6px" }}>
+                    Add this key to <code>~/.ssh/authorized_keys</code> on your server if not using a key from ~/.ssh/config:
+                  </div>
+                  <Focusable
+                    style={{
+                      fontFamily: "monospace",
+                      fontSize: "10px",
+                      wordBreak: "break-all",
+                      background: "rgba(0, 0, 0, 0.4)",
+                      padding: "8px",
+                      borderRadius: "4px",
+                      marginBottom: "8px",
+                      color: "#67c1f5",
+                      lineHeight: "1.3",
+                    }}
+                  >
+                    {sshKeyInfo.public_key}
+                  </Focusable>
+                  <DialogButton
+                    className="decky-unison-btn-compact"
+                    onClick={handleCopyKey}
+                  >
+                    {copiedKey ? "Copied to Clipboard!" : "Copy Public Key"}
+                  </DialogButton>
+                </div>
+              ) : (
+                <div style={{ fontSize: "11px", color: "#8b929a" }}>
+                  Used to authorize this Steam Deck to connect to your SSH server without passwords.
+                </div>
+              )}
+            </DialogControlsSection>
           )}
-        </DialogControlsSection>
-
-        {/* SSH Key Helper */}
-        {type === "ssh" && sshKeyInfo && (
-          <DialogControlsSection>
-            <DialogControlsSectionHeader>
-              <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <FaKey /> Steam Deck Public SSH Key
-              </span>
-            </DialogControlsSectionHeader>
-            <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "6px" }}>
-              Add this key to <code>~/.ssh/authorized_keys</code> on your server if not using a key from ~/.ssh/config:
-            </div>
-            <Focusable
-              style={{
-                fontFamily: "monospace",
-                fontSize: "10px",
-                wordBreak: "break-all",
-                background: "rgba(0, 0, 0, 0.4)",
-                padding: "8px",
-                borderRadius: "4px",
-                marginBottom: "8px",
-                color: "#67c1f5",
-                lineHeight: "1.3",
-              }}
-            >
-              {sshKeyInfo.public_key}
-            </Focusable>
-            <DialogButton
-              onClick={handleCopyKey}
-              style={{ fontSize: "11px", padding: "6px 12px" }}
-            >
-              {copiedKey ? "Copied to Clipboard!" : "Copy Public Key"}
-            </DialogButton>
-          </DialogControlsSection>
-        )}
         </div>
       </DialogBody>
 
       <DialogFooter>
-        <DialogButtonPrimary onClick={handleSave}>
+        <DialogButtonPrimary onClick={handleSave} className="decky-unison-btn-compact" style={{ height: "36px" }}>
           Save Remote
         </DialogButtonPrimary>
-        {selectedRemoteId && (
-          <DialogButton
-            onClick={handleDelete}
-            style={{ color: "#e74c3c", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-          >
-            <FaTrash /> Delete
-          </DialogButton>
-        )}
-        <DialogButtonSecondary onClick={closeModal}>
+        <DialogButtonSecondary onClick={closeModal} className="decky-unison-btn-compact" style={{ height: "36px" }}>
           Cancel
         </DialogButtonSecondary>
       </DialogFooter>
