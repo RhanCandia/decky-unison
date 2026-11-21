@@ -2,6 +2,8 @@ import {
   PanelSection,
   PanelSectionRow,
   ButtonItem,
+  DialogButton,
+  Focusable,
   showModal,
 } from "@decky/ui";
 import { toaster } from "@decky/api";
@@ -186,58 +188,57 @@ export function QuickAccessPanel() {
 
   return (
     <>
-      {/* Tab Navigation Header */}
-      <div
+      {/* Tab Navigation Header - Focusable for controller */}
+      <Focusable
+        flow-children="horizontal"
         style={{
           display: "flex",
-          gap: "4px",
+          gap: "6px",
           background: "rgba(0, 0, 0, 0.4)",
-          padding: "3px",
+          padding: "4px",
           borderRadius: "6px",
-          marginBottom: "10px",
+          marginBottom: "12px",
         }}
       >
-        <button
+        <DialogButton
           onClick={() => setActiveTab("games")}
           style={{
             flex: 1,
-            padding: "6px 4px",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: activeTab === "games" ? "bold" : "normal",
-            background: activeTab === "games" ? "#1a9fff" : "transparent",
-            color: activeTab === "games" ? "#ffffff" : "#8b929a",
+            height: "34px",
+            minWidth: "auto",
+            padding: "0 8px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: "6px",
             fontSize: "12px",
+            fontWeight: activeTab === "games" ? "bold" : "normal",
+            background: activeTab === "games" ? "#1a9fff" : "rgba(255, 255, 255, 0.06)",
+            color: activeTab === "games" ? "#ffffff" : "#8b929a",
           }}
         >
           <FaGamepad /> Games ({profiles.length})
-        </button>
-        <button
+        </DialogButton>
+        <DialogButton
           onClick={() => setActiveTab("settings")}
           style={{
             flex: 1,
-            padding: "6px 4px",
-            borderRadius: "4px",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: activeTab === "settings" ? "bold" : "normal",
-            background: activeTab === "settings" ? "#1a9fff" : "transparent",
-            color: activeTab === "settings" ? "#ffffff" : "#8b929a",
+            height: "34px",
+            minWidth: "auto",
+            padding: "0 8px",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             gap: "6px",
             fontSize: "12px",
+            fontWeight: activeTab === "settings" ? "bold" : "normal",
+            background: activeTab === "settings" ? "#1a9fff" : "rgba(255, 255, 255, 0.06)",
+            color: activeTab === "settings" ? "#ffffff" : "#8b929a",
           }}
         >
           <FaCog /> Settings
-        </button>
-      </div>
+        </DialogButton>
+      </Focusable>
 
       {/* TAB 1: GAMES */}
       {activeTab === "games" && (
@@ -245,7 +246,7 @@ export function QuickAccessPanel() {
           <PanelSection title="Initialized Games">
             {loading ? (
               <PanelSectionRow>
-                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
                   Loading game profiles...
                 </div>
               </PanelSectionRow>
@@ -302,83 +303,77 @@ export function QuickAccessPanel() {
                         Last synced: {formatTime(prof.last_synced)}
                       </div>
 
-                      {/* Row 3: Action Buttons (Narrow QAM Optimized) */}
-                      <div style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px" }}>
+                      {/* Row 3: Action Buttons (Focusable with horizontal navigation) */}
+                      <Focusable
+                        flow-children="horizontal"
+                        style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px", width: "100%" }}
+                      >
                         {/* Primary Sync button */}
-                        <button
+                        <DialogButton
                           onClick={() => handleSyncGame(prof)}
                           disabled={isSyncing}
                           style={{
                             flex: 1,
-                            height: "30px",
+                            height: "32px",
+                            minWidth: "auto",
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            gap: "5px",
+                            gap: "6px",
+                            fontSize: "12px",
+                            fontWeight: "bold",
                             background: isSyncing ? "#444" : "#1a9fff",
                             color: "#fff",
-                            border: "none",
-                            borderRadius: "4px",
-                            fontSize: "11px",
-                            cursor: isSyncing ? "not-allowed" : "pointer",
-                            fontWeight: "bold",
                           }}
                         >
                           <FaSyncAlt className={isSyncing ? "spin" : ""} />
-                          {isSyncing ? "Syncing..." : "Sync"}
-                        </button>
+                          <span>{isSyncing ? "Syncing..." : "Sync"}</span>
+                        </DialogButton>
 
                         {/* Compact Config Icon Button */}
-                        <button
+                        <DialogButton
                           onClick={() => openProfileConfig(matchingGame, prof)}
-                          title="Configure Game"
                           style={{
-                            width: "32px",
-                            height: "30px",
+                            width: "36px",
+                            height: "32px",
+                            minWidth: "36px",
+                            padding: 0,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            background: "rgba(255, 255, 255, 0.08)",
-                            color: "#c9d1d9",
-                            border: "none",
-                            borderRadius: "4px",
-                            cursor: "pointer",
-                            fontSize: "12px",
+                            fontSize: "13px",
                           }}
                         >
                           <FaCog />
-                        </button>
+                        </DialogButton>
 
                         {/* Compact Log Icon Button */}
                         {prof.last_synced && (
-                          <button
+                          <DialogButton
                             onClick={() => openLogForProfile(prof.id!, prof.game_name)}
-                            title="View Sync Log"
                             style={{
-                              width: "32px",
-                              height: "30px",
+                              width: "36px",
+                              height: "32px",
+                              minWidth: "36px",
+                              padding: 0,
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              background: "rgba(255, 255, 255, 0.08)",
-                              color: prof.last_status === "error" ? "#e74c3c" : "#c9d1d9",
-                              border: "none",
-                              borderRadius: "4px",
-                              cursor: "pointer",
-                              fontSize: "12px",
+                              fontSize: "13px",
+                              color: prof.last_status === "error" ? "#e74c3c" : undefined,
                             }}
                           >
                             <FaFileAlt />
-                          </button>
+                          </DialogButton>
                         )}
-                      </div>
+                      </Focusable>
                     </div>
                   </PanelSectionRow>
                 );
               })
             ) : (
               <PanelSectionRow>
-                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
                   No games initialized yet. Select a Non-Steam game below to set up Unison.
                 </div>
               </PanelSectionRow>
@@ -390,14 +385,15 @@ export function QuickAccessPanel() {
             {unconfiguredGames.length > 0 ? (
               unconfiguredGames.map((game) => (
                 <PanelSectionRow key={game.app_id}>
-                  <div
+                  <Focusable
+                    flow-children="horizontal"
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
                       alignItems: "center",
                       padding: "4px 0",
                       width: "100%",
-                      gap: "6px",
+                      gap: "8px",
                     }}
                   >
                     <div style={{ flex: 1, overflow: "hidden" }}>
@@ -414,32 +410,28 @@ export function QuickAccessPanel() {
                       </div>
                       <div style={{ fontSize: "10px", color: "#8b929a" }}>AppID: {game.app_id}</div>
                     </div>
-                    <button
+                    <DialogButton
                       onClick={() => openProfileConfig(game)}
                       style={{
-                        padding: "5px 10px",
-                        height: "28px",
+                        height: "30px",
+                        minWidth: "64px",
+                        padding: "0 10px",
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "center",
                         gap: "5px",
-                        background: "rgba(255, 255, 255, 0.1)",
-                        color: "#67c1f5",
-                        border: "1px solid rgba(103, 193, 245, 0.3)",
-                        borderRadius: "4px",
                         fontSize: "11px",
-                        cursor: "pointer",
-                        fontWeight: "bold",
                         whiteSpace: "nowrap",
                       }}
                     >
                       <FaPlus /> Init
-                    </button>
-                  </div>
+                    </DialogButton>
+                  </Focusable>
                 </PanelSectionRow>
               ))
             ) : (
               <PanelSectionRow>
-                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
                   {games.length === 0
                     ? "No Non-Steam games detected in Steam shortcuts."
                     : "All detected Non-Steam games are initialized!"}
@@ -468,7 +460,8 @@ export function QuickAccessPanel() {
             {history.length > 0 ? (
               history.slice(0, 5).map((item, idx) => (
                 <PanelSectionRow key={idx}>
-                  <div
+                  <Focusable
+                    onActivate={() => openLogModal(item)}
                     onClick={() => openLogModal(item)}
                     style={{
                       fontSize: "11px",
@@ -477,9 +470,9 @@ export function QuickAccessPanel() {
                       alignItems: "center",
                       width: "100%",
                       cursor: "pointer",
-                      padding: "6px 8px",
-                      borderRadius: "4px",
-                      background: "rgba(255, 255, 255, 0.03)",
+                      padding: "8px 10px",
+                      borderRadius: "6px",
+                      background: "rgba(255, 255, 255, 0.04)",
                     }}
                   >
                     <div style={{ flex: 1, overflow: "hidden" }}>
@@ -492,12 +485,12 @@ export function QuickAccessPanel() {
                       </span>
                       <span style={{ fontSize: "10px", color: "#67c1f5" }}>[Log]</span>
                     </div>
-                  </div>
+                  </Focusable>
                 </PanelSectionRow>
               ))
             ) : (
               <PanelSectionRow>
-                <div style={{ padding: "8px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
                   No recent sync history recorded.
                 </div>
               </PanelSectionRow>

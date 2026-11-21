@@ -1,19 +1,25 @@
 import {
   ModalRoot,
   DialogHeader,
+  DialogSubHeader,
   DialogBody,
   DialogFooter,
   DialogButton,
+  DialogButtonPrimary,
+  DialogButtonSecondary,
+  DialogControlsSection,
+  DialogControlsSectionHeader,
   TextField,
   DropdownItem,
   ToggleField,
+  Focusable,
   showModal,
 } from "@decky/ui";
 import { useState, useEffect } from "react";
 import { NonSteamGame, GameProfile, RemoteConfig, SaveCandidate } from "../types";
 import { getSaveCandidates, saveGameProfile, deleteGameProfile } from "../api";
 import { FileBrowserModal } from "./FileBrowserModal";
-import { FaFolderOpen, FaTrash, FaCheck, FaTimes, FaCog } from "react-icons/fa";
+import { FaFolderOpen, FaTrash, FaCheck, FaCog } from "react-icons/fa";
 
 interface GameProfileModalProps {
   game: NonSteamGame;
@@ -66,11 +72,9 @@ export function GameProfileModal({
   const [extraArgs, setExtraArgs] = useState<string>(existingProfile?.extra_args || "");
 
   useEffect(() => {
-    // Look for save candidates automatically
     getSaveCandidates(game.app_id, game.name)
       .then((res) => {
         setCandidates(res);
-        // If localPath is not set, and there's a recommended candidate, pre-populate it!
         if (!localPath && res.length > 0 && res[0].is_recommended) {
           setLocalPath(res[0].path);
         }
@@ -120,184 +124,232 @@ export function GameProfileModal({
 
   return (
     <ModalRoot onCancel={closeModal}>
-      <DialogHeader>Configure Unison: {game.name}</DialogHeader>
+      <DialogHeader>Configure Unison Sync</DialogHeader>
+      <DialogSubHeader>
+        <span style={{ color: "#fff", fontWeight: "bold" }}>{game.name}</span>
+        <span style={{ color: "#8b929a", marginLeft: "8px" }}>(AppID: {game.app_id})</span>
+      </DialogSubHeader>
+
       <DialogBody>
-        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {/* Game Information */}
-          <div style={{ fontSize: "12px", color: "#8b929a" }}>
-            Steam AppID: <span style={{ fontFamily: "monospace", color: "#67c1f5" }}>{game.app_id}</span>
-          </div>
+        {/* Section 1: Local Save Directory on Steam Deck */}
+        <DialogControlsSection>
+          <DialogControlsSectionHeader>Local Save Directory (Steam Deck)</DialogControlsSectionHeader>
+          <TextField
+            label="Path on Deck"
+            description="Directory containing save files for this game"
+            value={localPath}
+            onChange={(e) => setLocalPath(e.target.value)}
+          />
+          <DialogButton
+            onClick={handleOpenBrowser}
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "8px",
+            }}
+          >
+            <FaFolderOpen /> Browse Steam Deck Folders...
+          </DialogButton>
 
-          {/* Local Save Path */}
-          <div>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: "8px" }}>
-              <div style={{ flex: 1 }}>
-                <TextField
-                  label="Local Save Folder on Steam Deck"
-                  value={localPath}
-                  onChange={(e) => setLocalPath(e.target.value)}
-                />
+          {/* Save candidates list */}
+          {candidates.length > 0 && (
+            <div style={{ marginTop: "12px" }}>
+              <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "6px" }}>
+                Auto-Detected Save Folders:
               </div>
-              <DialogButton
-                onClick={handleOpenBrowser}
-                style={{ marginBottom: "2px", height: "40px", display: "flex", alignItems: "center", gap: "6px" }}
+              <Focusable
+                flow-children="vertical"
+                style={{ display: "flex", flexDirection: "column", gap: "6px" }}
               >
-                <FaFolderOpen /> Browse...
-              </DialogButton>
-            </div>
-
-            {/* Candidates suggestions */}
-            {candidates.length > 0 && (
-              <div style={{ marginTop: "6px" }}>
-                <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "4px" }}>
-                  Detected Save Candidates:
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                  {candidates.slice(0, 3).map((c, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => setLocalPath(c.path)}
-                      style={{
-                        fontSize: "11px",
-                        padding: "4px 8px",
-                        borderRadius: "3px",
-                        background: c.is_recommended ? "rgba(103, 193, 245, 0.15)" : "rgba(255, 255, 255, 0.05)",
-                        border: c.is_recommended ? "1px solid #67c1f5" : "none",
-                        cursor: "pointer",
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <span style={{ fontWeight: c.is_recommended ? "bold" : "normal" }}>{c.label}</span>
-                      <span style={{ fontSize: "10px", color: "#8b929a" }}>Use this</span>
+                {candidates.slice(0, 3).map((c, idx) => (
+                  <DialogButton
+                    key={idx}
+                    onClick={() => setLocalPath(c.path)}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      padding: "8px 12px",
+                      height: "auto",
+                      minWidth: "auto",
+                      background: c.is_recommended ? "rgba(103, 193, 245, 0.15)" : undefined,
+                      border: c.is_recommended ? "1px solid rgba(103, 193, 245, 0.5)" : undefined,
+                    }}
+                  >
+                    <div style={{ textAlign: "left", flex: 1, overflow: "hidden" }}>
+                      <div
+                        style={{
+                          fontWeight: c.is_recommended ? "bold" : "normal",
+                          fontSize: "12px",
+                          color: c.is_recommended ? "#67c1f5" : "#fff",
+                        }}
+                      >
+                        {c.is_recommended ? "⭐ " : ""}{c.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: "#8b929a",
+                          textOverflow: "ellipsis",
+                          overflow: "hidden",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {c.path}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+                    <span style={{ fontSize: "10px", color: "#67c1f5", marginLeft: "8px", whiteSpace: "nowrap" }}>
+                      Use this
+                    </span>
+                  </DialogButton>
+                ))}
+              </Focusable>
+            </div>
+          )}
+        </DialogControlsSection>
 
-          {/* Remote Endpoint & Path */}
+        {/* Section 2: Remote Target Server */}
+        <DialogControlsSection>
+          <DialogControlsSectionHeader>Remote Target Server</DialogControlsSectionHeader>
           {remotes.length > 0 ? (
             <DropdownItem
-              label="Remote Sync Target"
+              label="Sync Target"
+              description="Configured remote or central server"
               rgOptions={remotes.map((r) => ({
                 label: `${r.name} (${r.type.toUpperCase()})`,
                 data: r.id!,
               }))}
               selectedOption={remoteId}
-              onChange={(opt) => setRemoteId(opt.data)}
+              onChange={(opt) => {
+                setRemoteId(opt.data);
+                const found = remotes.find((r) => r.id === opt.data);
+                if (found?.user && remotePath.includes("/home/")) {
+                  setRemotePath(`/home/${found.user}/saves/${sanitizedGameName}`);
+                }
+              }}
             />
           ) : (
-            <div style={{ fontSize: "12px", color: "#e74c3c" }}>
-              No remotes configured. Please add a remote in Remotes Setup first.
+            <div style={{ fontSize: "12px", color: "#e74c3c", padding: "6px 0" }}>
+              ⚠️ No remotes configured yet. Please add a remote in Settings first.
             </div>
           )}
 
           <TextField
             label="Remote Destination Directory (Absolute Path)"
-            description="Must be an absolute path (e.g. /home/username/saves/Game or C:/Games/Saves/Game). Unison does not support '~/'."
+            description="Absolute path on the server (e.g. /home/user/saves/GameName or C:/Games/Saves/GameName). Note: Unison requires absolute paths without '~/'."
             value={remotePath}
             onChange={(e) => setRemotePath(e.target.value)}
           />
+        </DialogControlsSection>
 
-          {/* Advanced Unison CLI Options Toggle */}
-          <div style={{ marginTop: "4px" }}>
-            <DialogButton
-              onClick={() => setShowAdvanced(!showAdvanced)}
-              style={{ fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}
-            >
-              <FaCog /> {showAdvanced ? "Hide Unison CLI Toggles" : "Show Unison CLI Toggles"}
-            </DialogButton>
-          </div>
+        {/* Section 3: Conflict Policy & Advanced Options Toggle */}
+        <DialogControlsSection>
+          <DialogControlsSectionHeader>Synchronization Policy</DialogControlsSectionHeader>
+          <DropdownItem
+            label="Conflict Resolution (-prefer)"
+            description="Policy when files are changed on both Steam Deck and Server"
+            rgOptions={[
+              { label: "Newer File Wins (prefer newer)", data: "newer" },
+              { label: "Steam Deck Overwrites Remote (prefer deck)", data: "root1" },
+              { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
+            ]}
+            selectedOption={prefer}
+            onChange={(opt) => setPrefer(opt.data as any)}
+          />
 
-          {showAdvanced && (
-            <div
-              style={{
-                background: "rgba(0, 0, 0, 0.25)",
-                padding: "10px",
-                borderRadius: "4px",
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-              }}
-            >
-              <DropdownItem
-                label="Conflict Resolution (-prefer)"
-                rgOptions={[
-                  { label: "Newer File Wins (prefer newer)", data: "newer" },
-                  { label: "Deck Overwrites Remote (prefer deck)", data: "root1" },
-                  { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
-                ]}
-                selectedOption={prefer}
-                onChange={(opt) => setPrefer(opt.data as any)}
-              />
+          <DialogButton
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: "6px",
+              fontSize: "12px",
+            }}
+          >
+            <FaCog /> {showAdvanced ? "Hide Advanced Unison Options" : "Show Advanced Unison Options"}
+          </DialogButton>
+        </DialogControlsSection>
 
-              <ToggleField
-                label="Versioned Backups (-backup)"
-                description="Keeps previous versions before overwriting saves"
-                checked={backup}
-                onChange={(val) => setBackup(val)}
-              />
+        {/* Section 4: Advanced CLI Options */}
+        {showAdvanced && (
+          <DialogControlsSection>
+            <DialogControlsSectionHeader>Advanced Unison CLI Options</DialogControlsSectionHeader>
+            <ToggleField
+              label="Versioned Backups (-backup)"
+              description="Preserve previous file versions before overwriting"
+              checked={backup}
+              onChange={(val) => setBackup(val)}
+            />
 
-              {backup && (
-                <TextField
-                  label="Max Backups to Retain (-maxbackups)"
-                  value={String(maxbackups)}
-                  onChange={(e) => setMaxbackups(Number(e.target.value))}
-                />
-              )}
-
-              <ToggleField
-                label="Batch Mode (-batch)"
-                description="Runs non-interactively without prompting"
-                checked={batch}
-                onChange={(val) => setBatch(val)}
-              />
-
-              <ToggleField
-                label="Automatic Acceptance (-auto)"
-                description="Automatically accepts non-conflicting updates"
-                checked={auto}
-                onChange={(val) => setAuto(val)}
-              />
-
-              <ToggleField
-                label="Confirm Big Deletions (-confirmbigdel)"
-                description="Prompt if large number of files are deleted"
-                checked={confirmbigdel}
-                onChange={(val) => setConfirmbigdel(val)}
-              />
-
-              <ToggleField
-                label="Preserve Timestamps (-times)"
-                description="Synchronize file modification times"
-                checked={times}
-                onChange={(val) => setTimes(val)}
-              />
-
+            {backup && (
               <TextField
-                label="Extra Custom Unison Flags"
-                value={extraArgs}
-                onChange={(e) => setExtraArgs(e.target.value)}
+                label="Max Backups to Retain (-maxbackups)"
+                description="Number of versions to keep per file"
+                value={String(maxbackups)}
+                onChange={(e) => setMaxbackups(Number(e.target.value))}
               />
-            </div>
-          )}
-        </div>
+            )}
+
+            <ToggleField
+              label="Batch Mode (-batch)"
+              description="Non-interactive execution without terminal questions"
+              checked={batch}
+              onChange={(val) => setBatch(val)}
+            />
+
+            <ToggleField
+              label="Automatic Acceptance (-auto)"
+              description="Automatically accept non-conflicting actions"
+              checked={auto}
+              onChange={(val) => setAuto(val)}
+            />
+
+            <ToggleField
+              label="Confirm Big Deletions (-confirmbigdel)"
+              description="Safeguard against mass deletion of save files"
+              checked={confirmbigdel}
+              onChange={(val) => setConfirmbigdel(val)}
+            />
+
+            <ToggleField
+              label="Preserve Timestamps (-times)"
+              description="Synchronize file modification timestamps"
+              checked={times}
+              onChange={(val) => setTimes(val)}
+            />
+
+            <TextField
+              label="Extra Custom CLI Flags"
+              description="Additional arguments passed directly to unison"
+              value={extraArgs}
+              onChange={(e) => setExtraArgs(e.target.value)}
+            />
+          </DialogControlsSection>
+        )}
       </DialogBody>
+
       <DialogFooter>
-        <DialogButton onClick={handleSave} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+        <DialogButtonPrimary
+          onClick={handleSave}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+        >
           <FaCheck /> Save Configuration
-        </DialogButton>
+        </DialogButtonPrimary>
         {existingProfile?.id && (
-          <DialogButton onClick={handleDelete} style={{ color: "#e74c3c", display: "flex", alignItems: "center", gap: "6px" }}>
-            <FaTrash /> Delete
+          <DialogButton
+            onClick={handleDelete}
+            style={{ color: "#e74c3c", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+          >
+            <FaTrash /> Delete Profile
           </DialogButton>
         )}
-        <DialogButton onClick={closeModal} style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-          <FaTimes /> Cancel
-        </DialogButton>
+        <DialogButtonSecondary onClick={closeModal}>
+          Cancel
+        </DialogButtonSecondary>
       </DialogFooter>
     </ModalRoot>
   );
