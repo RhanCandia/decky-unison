@@ -81,6 +81,7 @@ export interface SyncResult {
   status: "in_sync" | "updated" | "conflict" | "error";
   files_synced: number;
   details: string;
+  command?: string;
   raw_output: string;
 }
 
@@ -105,5 +106,7 @@ export interface HistoryEntry {
   success: boolean;
   files_synced: number;
   details: string;
+  command?: string;
+  raw_output?: string;
   timestamp: number;
 }

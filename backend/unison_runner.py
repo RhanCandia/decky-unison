@@ -173,12 +173,15 @@ class UnisonRunner:
                 if ("<----" in line or "---->" in line) and "Updating" in line:
                     files_synced += 1
 
+            cmd_str = " ".join(cmd)
+
             if proc.returncode == 0:
                 return {
                     "success": True,
                     "status": "in_sync" if is_nothing_to_do else "updated",
                     "files_synced": files_synced,
                     "details": "Replicas are in sync (no changes)" if is_nothing_to_do else f"Synced {files_synced} file(s) successfully.",
+                    "command": cmd_str,
                     "raw_output": combined_output.strip()
                 }
             elif proc.returncode == 1:
@@ -187,6 +190,7 @@ class UnisonRunner:
                     "status": "conflict" if has_conflict else "partial_error",
                     "files_synced": files_synced,
                     "details": "Conflict detected during synchronization." if has_conflict else "Some files skipped during sync.",
+                    "command": cmd_str,
                     "raw_output": combined_output.strip()
                 }
             else:
@@ -195,6 +199,7 @@ class UnisonRunner:
                     "status": "error",
                     "files_synced": 0,
                     "details": f"Unison exited with code {proc.returncode}.",
+                    "command": cmd_str,
                     "raw_output": combined_output.strip()
                 }
 
@@ -204,5 +209,6 @@ class UnisonRunner:
                 "status": "error",
                 "files_synced": 0,
                 "details": f"Failed to execute Unison: {str(e)}",
-                "raw_output": ""
+                "command": " ".join(cmd),
+                "raw_output": str(e)
             }

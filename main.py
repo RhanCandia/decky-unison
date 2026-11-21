@@ -165,11 +165,16 @@ class Plugin:
             "status": status,
             "success": res.get("success", False),
             "files_synced": res.get("files_synced", 0),
-            "details": details
+            "details": details,
+            "command": res.get("command", ""),
+            "raw_output": res.get("raw_output", "")
         })
 
         return res
 
-    # 6. History
+    # 6. History & Logs
     async def get_history(self) -> List[Dict[str, Any]]:
         return self.config_store.get_history()
+
+    async def get_latest_sync_log(self, profile_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        return self.config_store.get_latest_sync_log(profile_id)

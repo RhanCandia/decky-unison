@@ -13,9 +13,11 @@ import {
   getRemotes,
   triggerSync,
   getHistory,
+  getLatestSyncLog,
 } from "../api";
 import { GameProfileModal } from "./GameProfileModal";
 import { RemoteManagerModal } from "./RemoteManagerModal";
+import { SyncLogModal } from "./SyncLogModal";
 import {
   FaSyncAlt,
   FaServer,
@@ -23,6 +25,7 @@ import {
   FaExclamationCircle,
   FaClock,
   FaPlus,
+  FaFileAlt,
 } from "react-icons/fa";
 
 export function QuickAccessPanel() {
@@ -74,7 +77,7 @@ export function QuickAccessPanel() {
       } else {
         toaster.toast({
           title: "Sync Failed",
-          body: `${profile.game_name}: ${res.details || "Check remote or logs"}`,
+          body: `${profile.game_name}: ${res.details || "Check sync log for details"}`,
         });
       }
     } catch (e: any) {
@@ -101,6 +104,27 @@ export function QuickAccessPanel() {
 
   const openRemoteManager = () => {
     showModal(<RemoteManagerModal onSaved={refreshAll} />);
+  };
+
+  const openLogModal = (log: HistoryEntry) => {
+    showModal(<SyncLogModal log={log} />);
+  };
+
+  const openLogForProfile = async (profileId: string, gameName: string) => {
+    const found = history.find((h) => h.profile_id === profileId);
+    if (found) {
+      openLogModal(found);
+    } else {
+      const latest = await getLatestSyncLog(profileId);
+      if (latest) {
+        openLogModal(latest);
+      } else {
+        toaster.toast({
+          title: "No Log Found",
+          body: `No sync history available for ${gameName}`,
+        });
+      }
+    }
   };
 
   const formatTime = (ts?: number | null) => {
@@ -193,7 +217,7 @@ export function QuickAccessPanel() {
                     {prof.last_details ? ` (${prof.last_details})` : ""}
                   </div>
 
-                  <div style={{ display: "flex", gap: "8px" }}>
+                  <div style={{ display: "flex", gap: "6px" }}>
                     <div style={{ flex: 1 }}>
                       <ButtonItem
                         layout="below"
@@ -206,7 +230,7 @@ export function QuickAccessPanel() {
                         </div>
                       </ButtonItem>
                     </div>
-                    <div style={{ width: "90px" }}>
+                    <div style={{ width: "70px" }}>
                       <ButtonItem
                         layout="below"
                         onClick={() => openProfileConfig(matchingGame, prof)}
@@ -214,6 +238,18 @@ export function QuickAccessPanel() {
                         Config
                       </ButtonItem>
                     </div>
+                    {prof.last_synced && (
+                      <div style={{ width: "60px" }}>
+                        <ButtonItem
+                          layout="below"
+                          onClick={() => openLogForProfile(prof.id!, prof.game_name)}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "4px" }}>
+                            <FaFileAlt /> Log
+                          </div>
+                        </ButtonItem>
+                      </div>
+                    )}
                   </div>
                 </div>
               </PanelSectionRow>
@@ -269,16 +305,35 @@ export function QuickAccessPanel() {
         )}
       </PanelSection>
 
-      {/* Recent History */}
+      {/* Recent History / Logs */}
       {history.length > 0 && (
-        <PanelSection title="Recent Activity">
-          {history.slice(0, 3).map((item, idx) => (
+        <PanelSection title="Recent Activity & Logs">
+          {history.slice(0, 4).map((item, idx) => (
             <PanelSectionRow key={idx}>
-              <div style={{ fontSize: "11px", display: "flex", justifyContent: "space-between", width: "100%" }}>
-                <span>{item.game_name}</span>
-                <span style={{ color: item.success ? "#2ecc71" : "#e74c3c" }}>
-                  {item.status}: {formatTime(item.timestamp)}
-                </span>
+              <div
+                onClick={() => openLogModal(item)}
+                style={{
+                  fontSize: "11px",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  width: "100%",
+                  cursor: "pointer",
+                  padding: "6px 8px",
+                  borderRadius: "4px",
+                  background: "rgba(255, 255, 255, 0.03)",
+                }}
+              >
+                <div>
+                  <span style={{ fontWeight: "bold" }}>{item.game_name}</span>
+                  <span style={{ color: "#8b929a", marginLeft: "6px" }}>({formatTime(item.timestamp)})</span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ color: item.success ? "#2ecc71" : "#e74c3c" }}>
+                    {item.status}
+                  </span>
+                  <span style={{ fontSize: "10px", color: "#67c1f5" }}>[View Log]</span>
+                </div>
               </div>
             </PanelSectionRow>
           ))}

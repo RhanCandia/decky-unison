@@ -31,3 +31,4 @@ export const deleteGameProfile = callable<[profileId: string], boolean>("delete_
 
 export const triggerSync = callable<[profileId: string], SyncResult>("trigger_sync");
 export const getHistory = callable<[], HistoryEntry[]>("get_history");
+export const getLatestSyncLog = callable<[profileId?: string], HistoryEntry | null>("get_latest_sync_log");

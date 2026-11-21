@@ -162,3 +162,13 @@ class ConfigStore:
 
     def get_history(self) -> List[Dict[str, Any]]:
         return self.data.get("history", [])
+
+    def get_latest_sync_log(self, profile_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        history = self.get_history()
+        if not history:
+            return None
+        if profile_id:
+            for item in history:
+                if item.get("profile_id") == profile_id:
+                    return item
+        return history[0]

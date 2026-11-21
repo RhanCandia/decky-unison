@@ -208,7 +208,9 @@ class RemoteManager:
             ])
 
             target_spec = f"{target_user}@{input_host}" if target_user else input_host
-            ssh_cmd.extend([target_spec, "echo decky_unison_ok"])
+            remote_unison = remote.get("remote_unison_path") or "unison"
+            probe_cmd = f"echo decky_unison_ok && ({remote_unison} -version 2>&1 || echo NO_UNISON_FOUND)"
+            ssh_cmd.extend([target_spec, probe_cmd])
 
             try:
                 proc = subprocess.run(
@@ -216,14 +218,27 @@ class RemoteManager:
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=6
+                    timeout=7
                 )
                 if proc.returncode == 0 and "decky_unison_ok" in proc.stdout:
                     info_note = f" (via ~/.ssh/config alias '{input_host}')" if resolved["has_ssh_config"] else ""
-                    return {
-                        "success": True,
-                        "message": f"SSH connection to {target_spec}:{target_port}{info_note} succeeded!"
-                    }
+                    out = proc.stdout
+                    if "unison version" in out:
+                        ver = [l.strip() for l in out.splitlines() if "unison version" in l][0]
+                        return {
+                            "success": True,
+                            "message": f"Connected! Remote has {ver}{info_note}"
+                        }
+                    elif "NO_UNISON_FOUND" in out or "not found" in out or "is not recognized" in out:
+                        return {
+                            "success": False,
+                            "message": f"SSH connected{info_note}, but '{remote_unison}' was NOT found on remote server. Please ensure Unison is installed on the remote machine or specify its full path in 'Remote Unison Executable'."
+                        }
+                    else:
+                        return {
+                            "success": True,
+                            "message": f"SSH connection to {target_spec}:{target_port}{info_note} succeeded!"
+                        }
                 else:
                     err = proc.stderr.strip() or "SSH authentication failed (check ~/.ssh/config or authorized_keys)"
                     return {
