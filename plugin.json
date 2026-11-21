@@ -1,0 +1,11 @@
+{
+  "name": "Decky Unison",
+  "author": "Antigravity",
+  "flags": ["debug"],
+  "api_version": 1,
+  "publish": {
+    "tags": ["utility", "sync", "saves"],
+    "description": "Bi-directional save file synchronization for Non-Steam Games using Unison.",
+    "image": "https://opengraph.githubassets.com/1/SteamDeckHomebrew/PluginLoader"
+  }
+}
