@@ -51,8 +51,8 @@ class Plugin:
         self.config_store = ConfigStore(self.settings_dir)
         self.game_detector = GameDetector(self.user_home)
         self.file_browser = FileBrowser(self.user_home)
-        self.remote_manager = RemoteManager(self.settings_dir)
-        self.unison_runner = UnisonRunner(self.plugin_dir, self.settings_dir)
+        self.remote_manager = RemoteManager(self.settings_dir, self.user_home)
+        self.unison_runner = UnisonRunner(self.plugin_dir, self.settings_dir, self.user_home)
 
         decky.logger.info("Decky Unison backend initialized.")
 
@@ -92,6 +92,9 @@ class Plugin:
     async def get_ssh_key(self) -> Dict[str, str]:
         return self.remote_manager.ensure_ssh_key()
 
+    async def get_ssh_config_hosts(self) -> List[Dict[str, Any]]:
+        return self.remote_manager.get_ssh_config_hosts()
+
     # 4. Game Profiles (Per-game Unison Config)
     async def get_game_profiles(self) -> List[Dict[str, Any]]:
         return self.config_store.get_profiles()
@@ -122,9 +125,20 @@ class Plugin:
         # Pre-flight reachability check
         if remote.get("type") in ("ssh", "socket"):
             host = remote.get("host", "").strip()
+            user = remote.get("user", "").strip()
             port = int(remote.get("port", 22 if remote.get("type") == "ssh" else 26867))
-            if not self.remote_manager.probe_tcp(host, port, timeout=2.0):
-                err_msg = f"Cannot reach {host}:{port}. Is the server online and on the same network?"
+            key_path = remote.get("key_path", "").strip()
+
+            if remote.get("type") == "ssh":
+                resolved = self.remote_manager.resolve_ssh_host(host, user, port, key_path)
+                probe_host = resolved["target_host"]
+                probe_port = resolved["port"]
+            else:
+                probe_host = host
+                probe_port = port
+
+            if not self.remote_manager.probe_tcp(probe_host, probe_port, timeout=2.0):
+                err_msg = f"Cannot reach {probe_host}:{probe_port}. Is the server online and on the same network?"
                 self.config_store.update_profile_status(profile_id, "error", err_msg)
                 return {"success": False, "message": err_msg}
 

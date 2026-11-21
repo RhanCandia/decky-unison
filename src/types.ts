@@ -90,6 +90,14 @@ export interface SSHKeyInfo {
   public_key: string;
 }
 
+export interface SSHConfigHost {
+  alias: string;
+  hostname?: string;
+  user?: string;
+  port?: number;
+  identityfile?: string;
+}
+
 export interface HistoryEntry {
   profile_id: string;
   game_name: string;

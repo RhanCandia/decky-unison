@@ -125,6 +125,33 @@ class TestDeckyUnisonBackend(unittest.TestCase):
         self.assertIn("-servercmd /usr/local/bin/unison", args_str)
         self.assertIn("-ignore Name *.tmp", args_str)
 
+    def test_ssh_config_parsing_and_resolution(self):
+        ssh_config_path = os.path.join(self.test_dir, ".ssh", "config")
+        os.makedirs(os.path.dirname(ssh_config_path), exist_ok=True)
+        with open(ssh_config_path, "w") as f:
+            f.write("""
+Host myserver
+    HostName 192.168.1.88
+    User gamesync
+    Port 2222
+    IdentityFile ~/.ssh/id_custom
+""")
+        rm = RemoteManager(self.settings_dir, user_home=self.test_dir)
+        hosts = rm.get_ssh_config_hosts()
+        self.assertEqual(len(hosts), 1)
+        self.assertEqual(hosts[0]["alias"], "myserver")
+        self.assertEqual(hosts[0]["hostname"], "192.168.1.88")
+        self.assertEqual(hosts[0]["user"], "gamesync")
+        self.assertEqual(hosts[0]["port"], 2222)
+        self.assertEqual(hosts[0]["identityfile"], os.path.join(self.test_dir, ".ssh", "id_custom"))
+
+        # Test resolution
+        resolved = rm.resolve_ssh_host("myserver")
+        self.assertEqual(resolved["target_host"], "192.168.1.88")
+        self.assertEqual(resolved["port"], 2222)
+        self.assertEqual(resolved["user"], "gamesync")
+        self.assertEqual(resolved["key_path"], os.path.join(self.test_dir, ".ssh", "id_custom"))
+
     def test_local_unison_sync_execution(self):
         # Create two test replica directories
         replica_a = os.path.join(self.test_dir, "replica_a")

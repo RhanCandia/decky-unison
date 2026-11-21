@@ -9,6 +9,7 @@ import {
   TestResult,
   SyncResult,
   SSHKeyInfo,
+  SSHConfigHost,
   HistoryEntry,
 } from "./types";
 
@@ -22,6 +23,7 @@ export const saveRemote = callable<[remote: RemoteConfig], RemoteConfig>("save_r
 export const deleteRemote = callable<[remoteId: string], boolean>("delete_remote");
 export const testRemote = callable<[remoteId: string], TestResult>("test_remote");
 export const getSSHKey = callable<[], SSHKeyInfo>("get_ssh_key");
+export const getSSHConfigHosts = callable<[], SSHConfigHost[]>("get_ssh_config_hosts");
 
 export const getGameProfiles = callable<[], GameProfile[]>("get_game_profiles");
 export const saveGameProfile = callable<[profile: GameProfile], GameProfile>("save_game_profile");

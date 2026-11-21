@@ -6,11 +6,12 @@ import {
   DialogButton,
   TextField,
   DropdownItem,
+  Focusable,
 } from "@decky/ui";
 import { useState, useEffect } from "react";
-import { getRemotes, saveRemote, testRemote, getSSHKey } from "../api";
-import { RemoteConfig, TestResult, SSHKeyInfo } from "../types";
-import { FaServer, FaCheckCircle, FaExclamationTriangle, FaKey, FaTimes } from "react-icons/fa";
+import { getRemotes, saveRemote, testRemote, getSSHKey, getSSHConfigHosts } from "../api";
+import { RemoteConfig, TestResult, SSHKeyInfo, SSHConfigHost } from "../types";
+import { FaServer, FaCheckCircle, FaExclamationTriangle, FaKey, FaTimes, FaBook } from "react-icons/fa";
 
 interface RemoteManagerModalProps {
   closeModal?: () => void;
@@ -19,12 +20,14 @@ interface RemoteManagerModalProps {
 
 export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalProps) {
   const [remotes, setRemotes] = useState<RemoteConfig[]>([]);
+  const [sshConfigHosts, setSshConfigHosts] = useState<SSHConfigHost[]>([]);
   const [selectedRemoteId, setSelectedRemoteId] = useState<string>("");
   const [name, setName] = useState<string>("Central Server");
   const [type, setType] = useState<"ssh" | "socket" | "local">("ssh");
   const [host, setHost] = useState<string>("");
   const [port, setPort] = useState<number>(22);
   const [user, setUser] = useState<string>("");
+  const [keyPath, setKeyPath] = useState<string>("");
   const [localPath, setLocalPath] = useState<string>("");
   const [remoteUnisonPath, setRemoteUnisonPath] = useState<string>("unison");
 
@@ -35,13 +38,17 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
 
   const loadData = async () => {
     try {
-      const remoteList = await getRemotes();
+      const [remoteList, key, sshHosts] = await Promise.all([
+        getRemotes(),
+        getSSHKey(),
+        getSSHConfigHosts().catch(() => []),
+      ]);
       setRemotes(remoteList);
+      setSshKeyInfo(key);
+      setSshConfigHosts(sshHosts);
       if (remoteList.length > 0) {
         loadRemoteIntoForm(remoteList[0]);
       }
-      const key = await getSSHKey();
-      setSshKeyInfo(key);
     } catch (e) {
       console.error("[DeckyUnison] Error loading remotes:", e);
     }
@@ -58,9 +65,19 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
     setHost(remote.host || "");
     setPort(remote.port || (remote.type === "socket" ? 26867 : 22));
     setUser(remote.user || "");
+    setKeyPath(remote.key_path || "");
     setLocalPath(remote.local_path || "");
     setRemoteUnisonPath(remote.remote_unison_path || "unison");
     setTestResult(null);
+  };
+
+  const applySSHConfigHost = (cfg: SSHConfigHost) => {
+    setName(cfg.alias);
+    setHost(cfg.alias);
+    setType("ssh");
+    if (cfg.user) setUser(cfg.user);
+    if (cfg.port) setPort(cfg.port);
+    if (cfg.identityfile) setKeyPath(cfg.identityfile);
   };
 
   const handleSave = async () => {
@@ -71,6 +88,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
       host,
       port: Number(port),
       user,
+      key_path: keyPath,
       local_path: localPath,
       remote_unison_path: remoteUnisonPath,
     };
@@ -81,28 +99,22 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
   };
 
   const handleTest = async () => {
-    if (!selectedRemoteId) {
-      // Temporarily save first to test
+    setTesting(true);
+    setTestResult(null);
+    try {
       const saved = await saveRemote({
-        id: undefined,
+        id: selectedRemoteId || undefined,
         name,
         type,
         host,
         port: Number(port),
         user,
+        key_path: keyPath,
         local_path: localPath,
         remote_unison_path: remoteUnisonPath,
       });
       setSelectedRemoteId(saved.id!);
-      setTesting(true);
       const res = await testRemote(saved.id!);
-      setTestResult(res);
-      setTesting(false);
-      return;
-    }
-    setTesting(true);
-    try {
-      const res = await testRemote(selectedRemoteId);
       setTestResult(res);
     } catch (e: any) {
       setTestResult({ success: false, message: e.message || "Failed to test connection" });
@@ -141,6 +153,26 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
           </div>
         )}
 
+        {/* SSH Config Host presets helper */}
+        {sshConfigHosts.length > 0 && type === "ssh" && (
+          <div style={{ marginBottom: "12px", background: "rgba(103, 193, 245, 0.1)", padding: "8px 10px", borderRadius: "4px" }}>
+            <div style={{ fontSize: "11px", color: "#67c1f5", fontWeight: "bold", display: "flex", alignItems: "center", gap: "6px", marginBottom: "6px" }}>
+              <FaBook /> Discovered in ~/.ssh/config:
+            </div>
+            <Focusable style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+              {sshConfigHosts.map((h, idx) => (
+                <DialogButton
+                  key={idx}
+                  style={{ fontSize: "11px", padding: "3px 8px", height: "auto" }}
+                  onClick={() => applySSHConfigHost(h)}
+                >
+                  {h.alias} {h.hostname ? `(${h.hostname})` : ""}
+                </DialogButton>
+              ))}
+            </Focusable>
+          </div>
+        )}
+
         <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
           <TextField
             label="Remote Display Name"
@@ -151,7 +183,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
           <DropdownItem
             label="Connection Protocol"
             rgOptions={[
-              { label: "SSH (Central Server / VPS / PC)", data: "ssh" },
+              { label: "SSH (Central Server / ~/.ssh/config alias)", data: "ssh" },
               { label: "Unison Socket (Direct TCP socket://)", data: "socket" },
               { label: "Local Directory (Mounted SMB/NFS share)", data: "local" },
             ]}
@@ -167,14 +199,14 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
           {type !== "local" ? (
             <>
               <TextField
-                label="Host / IP / Tailscale Domain"
+                label="Host / IP / ~/.ssh/config Alias"
                 value={host}
                 onChange={(e) => setHost(e.target.value)}
               />
               <div style={{ display: "flex", gap: "10px" }}>
                 <div style={{ flex: 1 }}>
                   <TextField
-                    label="Port"
+                    label="Port (default: 22)"
                     value={String(port)}
                     onChange={(e) => setPort(Number(e.target.value))}
                   />
@@ -182,7 +214,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
                 {type === "ssh" && (
                   <div style={{ flex: 1 }}>
                     <TextField
-                      label="Username"
+                      label="Username (optional if in ~/.ssh/config)"
                       value={user}
                       onChange={(e) => setUser(e.target.value)}
                     />
@@ -190,11 +222,18 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
                 )}
               </div>
               {type === "ssh" && (
-                <TextField
-                  label="Remote Unison Executable (default: unison)"
-                  value={remoteUnisonPath}
-                  onChange={(e) => setRemoteUnisonPath(e.target.value)}
-                />
+                <>
+                  <TextField
+                    label="Identity / Private Key File (optional if in ~/.ssh/config)"
+                    value={keyPath}
+                    onChange={(e) => setKeyPath(e.target.value)}
+                  />
+                  <TextField
+                    label="Remote Unison Executable (default: unison)"
+                    value={remoteUnisonPath}
+                    onChange={(e) => setRemoteUnisonPath(e.target.value)}
+                  />
+                </>
               )}
             </>
           ) : (
@@ -248,7 +287,7 @@ export function RemoteManagerModal({ closeModal, onSaved }: RemoteManagerModalPr
                 <FaKey /> Steam Deck Public SSH Key
               </div>
               <div style={{ fontSize: "11px", color: "#8b929a", marginBottom: "6px" }}>
-                Copy and add this key to <code>~/.ssh/authorized_keys</code> on your server:
+                If you are not using an existing key from ~/.ssh/config, you can copy this key to <code>~/.ssh/authorized_keys</code>:
               </div>
               <div
                 style={{

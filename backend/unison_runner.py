@@ -5,9 +5,11 @@ import shlex
 from typing import Dict, Any, List, Optional
 
 class UnisonRunner:
-    def __init__(self, plugin_dir: str, settings_dir: str):
+    def __init__(self, plugin_dir: str, settings_dir: str, user_home: Optional[str] = None):
         self.plugin_dir = plugin_dir
         self.settings_dir = settings_dir
+        self.user_home = os.path.abspath(user_home or os.path.expanduser("~"))
+        self.user_ssh_config = os.path.join(self.user_home, ".ssh", "config")
         self.unison_dir = os.path.join(self.settings_dir, "unison")
         os.makedirs(self.unison_dir, exist_ok=True)
         self.bin_path = self._locate_unison_binary()
@@ -91,6 +93,11 @@ class UnisonRunner:
                 "-o BatchMode=yes",
                 "-o ConnectTimeout=10"
             ]
+
+            # Use user's ~/.ssh/config if available
+            if os.path.isfile(self.user_ssh_config):
+                ssh_flags.insert(0, f"-F {self.user_ssh_config}")
+
             if port != 22:
                 ssh_flags.append(f"-p {port}")
             if key and os.path.exists(key):
