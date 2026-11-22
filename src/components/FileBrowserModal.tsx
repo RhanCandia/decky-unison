@@ -1,26 +1,30 @@
 import {
   ModalRoot,
   DialogHeader,
-  DialogSubHeader,
   DialogBody,
   DialogFooter,
   DialogButton,
   DialogButtonPrimary,
   DialogButtonSecondary,
-  DialogControlsSection,
-  DialogControlsSectionHeader,
   Focusable,
 } from "@decky/ui";
 import { useState, useEffect } from "react";
 import { browseDirectory, getQuickJumps } from "../api";
 import { DirectoryListing, QuickJump } from "../types";
-import { FaFolder, FaFile, FaArrowUp, FaCheck } from "react-icons/fa";
+import { FaFolder, FaFile, FaArrowUp, FaCheck, FaBolt } from "react-icons/fa";
 
 interface FileBrowserModalProps {
   initialPath?: string;
   appId?: number;
   onSelect: (selectedPath: string) => void;
   closeModal?: () => void;
+}
+
+function formatFileSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 export function FileBrowserModal({
@@ -59,158 +63,237 @@ export function FileBrowserModal({
     }
   };
 
+  const currentFolderBaseName = currentPath
+    ? currentPath.split(/[/\\]/).filter(Boolean).pop() || ""
+    : "";
+  const currentParentPath = listing?.parent_path || (currentPath ? currentPath.substring(0, currentPath.lastIndexOf("/")) : "");
+
   return (
     <ModalRoot onCancel={closeModal}>
       <DialogHeader>Browse Save Folder</DialogHeader>
-      <DialogSubHeader>
-        <span
-          style={{
-            fontFamily: "monospace",
-            fontSize: "11px",
-            color: "#67c1f5",
-            wordBreak: "break-all",
-          }}
-        >
-          {currentPath || "Loading directory..."}
-        </span>
-      </DialogSubHeader>
 
       <DialogBody>
-        <div className="decky-unison-root" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-          {/* Quick Jumps as compact chips */}
-          {quickJumps.length > 0 && (
-            <DialogControlsSection>
-              <DialogControlsSectionHeader>Quick Locations</DialogControlsSectionHeader>
-              <Focusable
-                flow-children="horizontal"
-                style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}
-              >
-                {quickJumps.map((jump, idx) => (
-                  <DialogButton
-                    key={idx}
-                    className="decky-unison-chip"
-                    onClick={() => loadDir(jump.path)}
-                  >
-                    {jump.name}
-                  </DialogButton>
-                ))}
-              </Focusable>
-            </DialogControlsSection>
-          )}
-
-          {/* Directory Contents Section */}
-          <DialogControlsSection>
-            <DialogControlsSectionHeader>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-                <span>Folder Contents</span>
-                {listing?.parent_path && (
-                  <DialogButton
-                    className="decky-unison-btn-compact"
-                    style={{ height: "26px", fontSize: "11px", padding: "0 8px" }}
-                    onClick={() => loadDir(listing.parent_path!)}
-                  >
-                    <FaArrowUp /> Up One Level
-                  </DialogButton>
-                )}
-              </div>
-            </DialogControlsSectionHeader>
+        <div className="decky-unison-root" style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {/* Navigation Bar: Up Button + Clean Path Breadcrumb */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "rgba(0, 0, 0, 0.4)",
+              padding: "6px 10px",
+              borderRadius: "6px",
+            }}
+          >
+            <DialogButton
+              className="decky-unison-btn-compact"
+              disabled={!listing?.parent_path}
+              onClick={() => listing?.parent_path && loadDir(listing.parent_path)}
+              style={{
+                height: "26px",
+                minWidth: "auto",
+                padding: "0 8px",
+                fontSize: "11px",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                color: listing?.parent_path ? "#ffffff" : "#666666",
+                flexShrink: 0,
+              }}
+            >
+              <FaArrowUp /> Up
+            </DialogButton>
 
             <div
               style={{
-                maxHeight: "220px",
-                overflowY: "auto",
+                flex: 1,
+                overflow: "hidden",
                 display: "flex",
-                flexDirection: "column",
-                gap: "3px",
-                background: "rgba(0, 0, 0, 0.25)",
-                padding: "6px",
-                borderRadius: "6px",
+                alignItems: "center",
+                gap: "2px",
+                fontSize: "11px",
               }}
             >
-              {loading ? (
-                <div style={{ padding: "16px", textAlign: "center", color: "#8b929a", fontSize: "12px" }}>
-                  Loading folder contents...
-                </div>
-              ) : listing?.entries && listing.entries.length > 0 ? (
-                listing.entries.map((entry, idx) => (
-                  <Focusable
-                    key={idx}
-                    flow-children="horizontal"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      padding: "6px 8px",
-                      borderRadius: "4px",
-                      background: entry.is_dir ? "rgba(255, 255, 255, 0.04)" : "transparent",
-                    }}
-                  >
-                    <div
-                      onClick={() => {
-                        if (entry.is_dir) loadDir(entry.path);
+              <span style={{ color: "#8b929a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {currentParentPath ? `${currentParentPath}/` : "/"}
+              </span>
+              <strong style={{ color: "#67c1f5", whiteSpace: "nowrap" }}>
+                {currentFolderBaseName}
+              </strong>
+            </div>
+          </div>
+
+          {/* Quick Jumps: Compact Horizontal Scroll Row */}
+          {quickJumps.length > 0 && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                overflowX: "auto",
+                paddingBottom: "2px",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "10px",
+                  color: "#8b929a",
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "3px",
+                  flexShrink: 0,
+                }}
+              >
+                <FaBolt style={{ color: "#f1c40f", fontSize: "10px" }} /> Quick Jumps:
+              </span>
+              <Focusable flow-children="horizontal" style={{ display: "flex", gap: "5px" }}>
+                {quickJumps.map((jump, idx) => {
+                  const label = jump.name.replace(/^Game:\s*/, "");
+                  const isCurrent = currentPath === jump.path;
+                  return (
+                    <DialogButton
+                      key={idx}
+                      className="decky-unison-chip"
+                      onClick={() => loadDir(jump.path)}
+                      style={{
+                        height: "24px",
+                        fontSize: "10px",
+                        padding: "0 8px",
+                        whiteSpace: "nowrap",
+                        background: isCurrent ? "rgba(26, 159, 255, 0.3)" : "rgba(255, 255, 255, 0.08)",
+                        border: isCurrent ? "1px solid #1a9fff" : undefined,
+                        color: isCurrent ? "#ffffff" : "#c9d1d9",
                       }}
+                    >
+                      {label}
+                    </DialogButton>
+                  );
+                })}
+              </Focusable>
+            </div>
+          )}
+
+          {/* Directory Content List Viewport */}
+          <div
+            style={{
+              maxHeight: "320px",
+              minHeight: "180px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "4px",
+              background: "rgba(0, 0, 0, 0.25)",
+              border: "1px solid rgba(255, 255, 255, 0.08)",
+              padding: "6px",
+              borderRadius: "6px",
+            }}
+          >
+            {loading ? (
+              <div style={{ padding: "32px 16px", textAlign: "center", color: "#8b929a", fontSize: "12px" }}>
+                Loading folder contents...
+              </div>
+            ) : listing?.entries && listing.entries.length > 0 ? (
+              listing.entries.map((entry, idx) => {
+                if (entry.is_dir) {
+                  return (
+                    <div
+                      key={idx}
                       style={{
                         display: "flex",
                         alignItems: "center",
-                        gap: "8px",
-                        flex: 1,
-                        overflow: "hidden",
-                        cursor: entry.is_dir ? "pointer" : "default",
+                        gap: "6px",
+                        width: "100%",
                       }}
                     >
-                      {entry.is_dir ? (
-                        <FaFolder style={{ color: "#e5a93c", flexShrink: 0 }} />
-                      ) : (
-                        <FaFile style={{ color: "#8b929a", flexShrink: 0 }} />
-                      )}
-                      <span
+                      <DialogButton
+                        className="decky-unison-card"
+                        onClick={() => loadDir(entry.path)}
                         style={{
-                          fontSize: "12px",
-                          textOverflow: "ellipsis",
+                          flex: 1,
+                          minHeight: "36px",
+                          padding: "6px 10px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          background: "rgba(255, 255, 255, 0.05)",
+                          border: "1px solid rgba(255, 255, 255, 0.08)",
+                          borderRadius: "4px",
+                          textAlign: "left",
                           overflow: "hidden",
-                          whiteSpace: "nowrap",
                         }}
                       >
-                        {entry.name}
+                        <FaFolder style={{ color: "#e5a93c", fontSize: "14px", flexShrink: 0 }} />
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            color: "#ffffff",
+                            textOverflow: "ellipsis",
+                            overflow: "hidden",
+                            whiteSpace: "nowrap",
+                            flex: 1,
+                          }}
+                        >
+                          {entry.name}
+                        </span>
+                      </DialogButton>
+
+                      <DialogButton
+                        className="decky-unison-btn-compact"
+                        onClick={() => {
+                          onSelect(entry.path);
+                          closeModal?.();
+                        }}
+                        style={{
+                          height: "36px",
+                          width: "auto",
+                          minWidth: "60px",
+                          padding: "0 10px",
+                          fontSize: "11px",
+                          background: "rgba(26, 159, 255, 0.18)",
+                          border: "1px solid rgba(26, 159, 255, 0.4)",
+                          color: "#67c1f5",
+                          flexShrink: 0,
+                        }}
+                      >
+                        Select
+                      </DialogButton>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "4px 10px",
+                        borderRadius: "4px",
+                        opacity: 0.6,
+                        fontSize: "11px",
+                        color: "#8b929a",
+                      }}
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px", overflow: "hidden" }}>
+                        <FaFile style={{ fontSize: "12px", flexShrink: 0 }} />
+                        <span style={{ textOverflow: "ellipsis", overflow: "hidden", whiteSpace: "nowrap" }}>
+                          {entry.name}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "10px", marginLeft: "8px", flexShrink: 0 }}>
+                        {formatFileSize(entry.size)}
                       </span>
                     </div>
-
-                    {entry.is_dir && (
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <DialogButton
-                          className="decky-unison-btn-compact"
-                          style={{ height: "24px", fontSize: "10px", padding: "0 8px" }}
-                          onClick={() => loadDir(entry.path)}
-                        >
-                          Open
-                        </DialogButton>
-                        <DialogButton
-                          className="decky-unison-btn-compact"
-                          style={{
-                            height: "24px",
-                            fontSize: "10px",
-                            padding: "0 8px",
-                            background: "#1a9fff",
-                            color: "#fff",
-                          }}
-                          onClick={() => {
-                            onSelect(entry.path);
-                            closeModal?.();
-                          }}
-                        >
-                          Select
-                        </DialogButton>
-                      </div>
-                    )}
-                  </Focusable>
-                ))
-              ) : (
-                <div style={{ padding: "16px", textAlign: "center", color: "#8b929a", fontSize: "12px" }}>
-                  (Folder is empty)
-                </div>
-              )}
-            </div>
-          </DialogControlsSection>
+                  );
+                }
+              })
+            ) : (
+              <div style={{ padding: "32px 16px", textAlign: "center", color: "#8b929a", fontSize: "12px" }}>
+                (Folder is empty)
+              </div>
+            )}
+          </div>
         </div>
       </DialogBody>
 
@@ -218,9 +301,18 @@ export function FileBrowserModal({
         <DialogButtonPrimary
           onClick={handleSelectCurrent}
           className="decky-unison-btn-compact"
-          style={{ height: "36px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
+          style={{
+            height: "36px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "6px",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
         >
-          <FaCheck /> Select Current Folder
+          <FaCheck /> {currentFolderBaseName ? `Choose: "${currentFolderBaseName}"` : "Choose Current Folder"}
         </DialogButtonPrimary>
         <DialogButtonSecondary onClick={closeModal} className="decky-unison-btn-compact" style={{ height: "36px" }}>
           Cancel

@@ -266,6 +266,24 @@ export function QuickAccessPanel() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const latestSyncTimestamp =
+    history[0]?.timestamp ||
+    Math.max(0, ...profiles.map((p) => p.last_synced || 0));
+
+  const formatLastSync = (ts?: number | null) => {
+    if (!ts) return "Never";
+    const now = Date.now() / 1000;
+    const diff = Math.floor(now - ts);
+    if (diff < 60) return "Just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    const d = new Date(ts * 1000);
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) {
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+    return `${d.toLocaleDateString([], { month: "short", day: "numeric" })} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`;
+  };
+
   const renderDirectionBadge = (item?: {
     last_direction?: string | null;
     last_direction_label?: string | null;
@@ -445,15 +463,18 @@ export function QuickAccessPanel() {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            gap: "8px",
             fontSize: "11px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
-            <span style={{ color: "#2ecc71", fontSize: "9px" }}>●</span>
-            <span style={{ color: "#8b929a" }}>Unison:</span>
-            <strong style={{ color: "#ffffff", whiteSpace: "nowrap" }}>
+          {/* Left Side: Unison Version & Last Sync */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden", flex: 1 }}>
+            <span style={{ color: "#2ecc71", fontSize: "9px", flexShrink: 0 }}>●</span>
+            <span style={{ color: "#8b929a", flexShrink: 0 }}>Unison:</span>
+            <strong style={{ color: "#ffffff", whiteSpace: "nowrap", flexShrink: 0 }}>
               v{binaryStatus.version || "Ready"}
             </strong>
+
             {binaryStatus.update_available && (
               <span
                 style={{
@@ -464,29 +485,44 @@ export function QuickAccessPanel() {
                   padding: "1px 5px",
                   fontSize: "9px",
                   fontWeight: "bold",
+                  whiteSpace: "nowrap",
+                  flexShrink: 0,
                 }}
               >
                 v{binaryStatus.latest_version} available
               </span>
             )}
+
+            <span style={{ color: "rgba(255, 255, 255, 0.2)", margin: "0 2px", flexShrink: 0 }}>•</span>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden", whiteSpace: "nowrap" }}>
+              <span style={{ color: "#8b929a", fontSize: "10px" }}>Last sync:</span>
+              <span style={{ color: "#c9d1d9", fontSize: "10px", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {formatLastSync(latestSyncTimestamp)}
+              </span>
+            </div>
           </div>
 
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {/* Right Side: Version Updater & Circular Refresh Icon */}
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", flexShrink: 0 }}>
             {binaryStatus.update_available && (
               <DialogButton
                 className="decky-unison-btn-compact"
                 onClick={handleDownloadBinary}
                 disabled={downloadingBinary}
                 style={{
-                  height: "22px",
+                  height: "26px",
+                  minWidth: "auto",
+                  width: "auto",
                   padding: "0 8px",
                   background: "#1a9fff",
                   color: "#ffffff",
                   fontSize: "10px",
                   fontWeight: "bold",
-                  display: "flex",
+                  display: "inline-flex",
                   alignItems: "center",
                   gap: "4px",
+                  flexShrink: 0,
                 }}
               >
                 <FaCloudDownloadAlt className={downloadingBinary ? "spin" : ""} />
@@ -496,17 +532,27 @@ export function QuickAccessPanel() {
 
             <DialogButton
               className="decky-unison-btn-compact"
-              onClick={() => checkBinary(true)}
+              onClick={() => {
+                refreshAll();
+                checkBinary(true);
+              }}
               disabled={checkingBinary}
               style={{
-                height: "22px",
-                padding: "0 6px",
+                width: "28px",
+                minWidth: "28px",
+                maxWidth: "28px",
+                height: "28px",
+                minHeight: "28px",
+                maxHeight: "28px",
+                padding: 0,
+                borderRadius: "50%",
                 background: "rgba(255, 255, 255, 0.08)",
                 color: checkingBinary ? "#1a9fff" : "#8b929a",
-                fontSize: "10px",
-                display: "flex",
+                fontSize: "11px",
+                display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
               <FaSyncAlt className={checkingBinary ? "spin" : ""} />
