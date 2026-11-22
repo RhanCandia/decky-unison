@@ -17,9 +17,10 @@ import {
   triggerSync,
   getHistory,
   getLatestSyncLog,
+  testRemote,
 } from "../api";
 import { GameProfileModal } from "./GameProfileModal";
-import { RemoteManagerModal } from "./RemoteManagerModal";
+import { RemoteConfigModal } from "./RemoteConfigModal";
 import { SyncLogModal } from "./SyncLogModal";
 import {
   FaSyncAlt,
@@ -42,6 +43,8 @@ export function QuickAccessPanel() {
   const [remotes, setRemotes] = useState<RemoteConfig[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [testingRemoteId, setTestingRemoteId] = useState<string | null>(null);
+  const [remoteStatusMap, setRemoteStatusMap] = useState<Record<string, { success: boolean; message: string }>>({});
   const [loading, setLoading] = useState<boolean>(true);
 
   const refreshAll = async () => {
@@ -110,8 +113,32 @@ export function QuickAccessPanel() {
     );
   };
 
-  const openRemoteManager = () => {
-    showModal(<RemoteManagerModal onSaved={refreshAll} />);
+  const openEditRemoteModal = (remote?: RemoteConfig) => {
+    showModal(<RemoteConfigModal remote={remote} onSaved={refreshAll} />);
+  };
+
+  const handleTestRemoteInline = async (remote: RemoteConfig) => {
+    if (!remote.id) return;
+    setTestingRemoteId(remote.id);
+    try {
+      const res = await testRemote(remote.id);
+      setRemoteStatusMap((prev) => ({ ...prev, [remote.id!]: res }));
+      toaster.toast({
+        title: res.success ? "Remote Connected" : "Connection Failed",
+        body: `${remote.name}: ${res.message}`,
+      });
+    } catch (e: any) {
+      setRemoteStatusMap((prev) => ({
+        ...prev,
+        [remote.id!]: { success: false, message: e?.message || "Test error" },
+      }));
+      toaster.toast({
+        title: "Connection Error",
+        body: `${remote.name}: ${e?.message || "Failed to reach remote"}`,
+      });
+    } finally {
+      setTestingRemoteId(null);
+    }
   };
 
   const openLogModal = (log: HistoryEntry) => {
@@ -517,11 +544,103 @@ export function QuickAccessPanel() {
       {/* TAB 2: SETTINGS */}
       {activeTab === "settings" && (
         <>
-          <PanelSection title="Remotes & Connections">
+          {/* Section 1: Configured Remotes */}
+          <PanelSection title="Sync Remotes">
+            {remotes.length > 0 ? (
+              remotes.map((remote) => {
+                const status = remoteStatusMap[remote.id!];
+                return (
+                  <PanelSectionRow key={remote.id}>
+                    <Field
+                      label={
+                        <div
+                          style={{
+                            color: "#ffffff",
+                            fontWeight: "bold",
+                            fontSize: "12px",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                          title={remote.name}
+                        >
+                          {remote.name}
+                        </div>
+                      }
+                      description={
+                        <div style={{ color: "#8b929a", fontSize: "10px", display: "flex", alignItems: "center", gap: "6px" }}>
+                          <span>
+                            {remote.type === "ssh"
+                              ? `SSH • ${remote.host}${remote.port && remote.port !== 22 ? `:${remote.port}` : ""}`
+                              : remote.type === "socket"
+                              ? `Socket • ${remote.host}:${remote.port || 26867}`
+                              : `Local • ${remote.local_path || "Share"}`}
+                          </span>
+                          {status && (
+                            <span style={{ color: status.success ? "#2ecc71" : "#e74c3c" }}>
+                              {status.success ? "● Online" : "● Offline"}
+                            </span>
+                          )}
+                        </div>
+                      }
+                    >
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <DialogButton
+                          className="decky-unison-btn-compact"
+                          onClick={() => handleTestRemoteInline(remote)}
+                          disabled={testingRemoteId === remote.id}
+                          style={{
+                            height: "28px",
+                            minWidth: "48px",
+                            width: "auto",
+                            padding: "0 8px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <FaServer /> {testingRemoteId === remote.id ? "..." : "Test"}
+                        </DialogButton>
+                        <DialogButton
+                          className="decky-unison-btn-compact"
+                          onClick={() => openEditRemoteModal(remote)}
+                          style={{
+                            height: "28px",
+                            minWidth: "48px",
+                            width: "auto",
+                            padding: "0 8px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            gap: "4px",
+                            fontSize: "11px",
+                            whiteSpace: "nowrap",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <FaCog /> Edit
+                        </DialogButton>
+                      </div>
+                    </Field>
+                  </PanelSectionRow>
+                );
+              })
+            ) : (
+              <PanelSectionRow>
+                <div style={{ padding: "8px 12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
+                  No sync remotes configured yet. Add one to begin syncing saves!
+                </div>
+              </PanelSectionRow>
+            )}
+
             <PanelSectionRow>
-              <ButtonItem layout="below" onClick={openRemoteManager}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "8px", fontSize: "12px" }}>
-                  <FaServer /> Manage Remotes & SSH Key
+              <ButtonItem layout="below" onClick={() => openEditRemoteModal()}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", fontSize: "12px" }}>
+                  <FaPlus /> Add New Remote
                 </div>
               </ButtonItem>
             </PanelSectionRow>

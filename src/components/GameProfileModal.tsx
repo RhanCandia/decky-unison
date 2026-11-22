@@ -69,6 +69,9 @@ export function GameProfileModal({
     existingProfile?.confirmbigdel ?? false
   );
   const [times, setTimes] = useState<boolean>(existingProfile?.times ?? true);
+  const [ignorearchives, setIgnorearchives] = useState<boolean>(
+    existingProfile?.ignorearchives ?? false
+  );
   const [extraArgs, setExtraArgs] = useState<string>(existingProfile?.extra_args || "");
 
   useEffect(() => {
@@ -107,6 +110,7 @@ export function GameProfileModal({
       batch,
       confirmbigdel,
       times,
+      ignorearchives,
       extra_args: extraArgs,
     };
     await saveGameProfile(profile);
@@ -289,6 +293,13 @@ export function GameProfileModal({
                     description="Synchronize file timestamps"
                     checked={times}
                     onChange={(val) => setTimes(val)}
+                  />
+
+                  <ToggleField
+                    label="Ignore Archive Mismatches (-ignorearchives)"
+                    description="Bypass archive checks (use to fix archive errors or force fresh initial sync)"
+                    checked={ignorearchives}
+                    onChange={(val) => setIgnorearchives(val)}
                   />
 
                   <TextField

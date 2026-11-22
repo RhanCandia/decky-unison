@@ -125,6 +125,15 @@ class TestDeckyUnisonBackend(unittest.TestCase):
         self.assertIn("-servercmd /usr/local/bin/unison", args_str)
         self.assertIn("-ignore Name *.tmp", args_str)
 
+        # Test ignorearchives option
+        ignore_args = runner.build_unison_args(
+            local_path="/home/deck/save",
+            remote_config=remote_ssh,
+            remote_path="/var/saves/game",
+            options={"ignorearchives": True}
+        )
+        self.assertIn("-ignorearchives", " ".join(ignore_args))
+
         # Test absolute path formatting
         abs_args = runner.build_unison_args(
             local_path="/home/deck/save",
@@ -205,6 +214,26 @@ Host myserver
         self.assertTrue(os.path.exists(os.path.join(replica_b, "game.sav")))
         with open(os.path.join(replica_b, "game.sav"), "r") as f:
             self.assertEqual(f.read(), "version 1")
+
+    def test_pair_ssh_validation(self):
+        rm = RemoteManager(self.settings_dir, user_home=self.test_dir)
+        # Empty fields
+        res1 = rm.pair_ssh_remote("", "user", "pass")
+        self.assertFalse(res1["success"])
+        self.assertIn("Host is required", res1["message"])
+
+        res2 = rm.pair_ssh_remote("192.168.1.1", "", "pass")
+        self.assertFalse(res2["success"])
+        self.assertIn("Username is required", res2["message"])
+
+        res3 = rm.pair_ssh_remote("192.168.1.1", "user", "")
+        self.assertFalse(res3["success"])
+        self.assertIn("Password is required", res3["message"])
+
+        # Unreachable host (dummy non-routable port on 127.0.0.1)
+        res4 = rm.pair_ssh_remote("127.0.0.1", "user", "pass", port=59999)
+        self.assertFalse(res4["success"])
+        self.assertIn("Could not reach", res4["message"])
 
 if __name__ == "__main__":
     unittest.main()

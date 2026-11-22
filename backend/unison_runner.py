@@ -91,6 +91,10 @@ class UnisonRunner:
             "-times" if opts.get("times", True) else "-times=false",
         ]
 
+        # Ignore archive files (bypass archive mismatch or force initial state regeneration)
+        if opts.get("ignorearchives", False):
+            args.append("-ignorearchives")
+
         # Conflict resolution preference
         prefer = opts.get("prefer", "newer")
         if prefer == "root1":

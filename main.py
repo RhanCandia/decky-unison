@@ -95,6 +95,9 @@ class Plugin:
     async def get_ssh_config_hosts(self) -> List[Dict[str, Any]]:
         return self.remote_manager.get_ssh_config_hosts()
 
+    async def pair_ssh(self, host: str, user: str, password: str, port: int = 22) -> Dict[str, Any]:
+        return self.remote_manager.pair_ssh_remote(host, user, password, port)
+
     # 4. Game Profiles (Per-game Unison Config)
     async def get_game_profiles(self) -> List[Dict[str, Any]]:
         return self.config_store.get_profiles()

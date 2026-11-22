@@ -65,6 +65,7 @@ export interface GameProfile {
   batch?: boolean;
   confirmbigdel?: boolean;
   times?: boolean;
+  ignorearchives?: boolean;
   extra_args?: string;
   last_synced?: number | null;
   last_status?: "in_sync" | "updated" | "conflict" | "error" | null;

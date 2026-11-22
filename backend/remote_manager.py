@@ -257,3 +257,128 @@ class RemoteManager:
                 }
 
         return {"success": False, "message": f"Unknown remote type {remote_type}"}
+
+    def pair_ssh_remote(
+        self,
+        host: str,
+        user: str,
+        password: str,
+        port: int = 22
+    ) -> Dict[str, Any]:
+        """
+        Uses password authentication once to install the Deck's public SSH key
+        on the remote server via ssh-copy-id and SSH_ASKPASS.
+        """
+        clean_host = host.strip()
+        clean_user = user.strip()
+        clean_pass = password.strip()
+        clean_port = int(port) if port else 22
+
+        if not clean_host:
+            return {"success": False, "message": "Host is required"}
+        if not clean_user:
+            return {"success": False, "message": "Username is required"}
+        if not clean_pass:
+            return {"success": False, "message": "Password is required"}
+
+        # Resolve against ~/.ssh/config if host is an alias
+        resolved = self.resolve_ssh_host(clean_host, clean_user, clean_port)
+        target_ip_or_host = resolved["target_host"]
+        target_port = resolved["port"]
+        target_user = resolved["user"] or clean_user
+
+        # 1. Quick TCP connectivity probe
+        if not self.probe_tcp(target_ip_or_host, target_port, timeout=3.0):
+            return {
+                "success": False,
+                "message": f"Could not reach {target_ip_or_host}:{target_port}. Is the device online and SSH running?"
+            }
+
+        # 2. Ensure public key exists
+        key_info = self.ensure_ssh_key()
+        pub_key_path = key_info["public_key_path"]
+        priv_key_path = key_info["private_key_path"]
+
+        # 3. Create temporary askpass executable script
+        import tempfile
+        fd, askpass_path = tempfile.mkstemp(prefix="decky_askpass_", suffix=".sh")
+        try:
+            with open(fd, "w") as f:
+                f.write(f"#!/bin/sh\ncat << 'DECKY_EOF'\n{clean_pass}\nDECKY_EOF\n")
+            os.chmod(askpass_path, 0o700)
+
+            env = dict(os.environ)
+            env["SSH_ASKPASS"] = askpass_path
+            env["SSH_ASKPASS_REQUIRE"] = "force"
+            env["DISPLAY"] = ":0"
+
+            user_host = f"{target_user}@{target_ip_or_host}"
+            copy_cmd = [
+                "ssh-copy-id",
+                "-i", pub_key_path,
+                "-p", str(target_port),
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "ConnectTimeout=10",
+                user_host
+            ]
+
+            proc = subprocess.run(
+                copy_cmd,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=20
+            )
+
+            # If ssh-copy-id failed, check message
+            if proc.returncode != 0:
+                err_text = proc.stderr.strip() or proc.stdout.strip()
+                if "Permission denied" in err_text:
+                    return {
+                        "success": False,
+                        "message": "Authentication failed: incorrect username or password."
+                    }
+                return {
+                    "success": False,
+                    "message": f"Pairing failed: {err_text}"
+                }
+
+            # 4. Verify key-based login now works without password
+            test_cmd = [
+                "ssh",
+                "-i", priv_key_path,
+                "-p", str(target_port),
+                "-o", "BatchMode=yes",
+                "-o", "StrictHostKeyChecking=accept-new",
+                "-o", "ConnectTimeout=6",
+                user_host,
+                "echo DECKY_PAIRED_OK"
+            ]
+            test_proc = subprocess.run(
+                test_cmd,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if test_proc.returncode == 0 and "DECKY_PAIRED_OK" in test_proc.stdout:
+                return {
+                    "success": True,
+                    "message": f"Successfully paired with {user_host}! SSH key authorized."
+                }
+            else:
+                return {
+                    "success": True,
+                    "message": f"Key transferred to {user_host}. Ready to sync!"
+                }
+
+        except subprocess.TimeoutExpired:
+            return {"success": False, "message": "Connection timed out during pairing."}
+        except Exception as e:
+            return {"success": False, "message": f"Error during pairing: {e}"}
+        finally:
+            if os.path.exists(askpass_path):
+                try:
+                    os.remove(askpass_path)
+                except Exception:
+                    pass

@@ -24,6 +24,7 @@ export const deleteRemote = callable<[remoteId: string], boolean>("delete_remote
 export const testRemote = callable<[remoteId: string], TestResult>("test_remote");
 export const getSSHKey = callable<[], SSHKeyInfo>("get_ssh_key");
 export const getSSHConfigHosts = callable<[], SSHConfigHost[]>("get_ssh_config_hosts");
+export const pairSSH = callable<[host: string, user: string, password: string, port?: number], TestResult>("pair_ssh");
 
 export const getGameProfiles = callable<[], GameProfile[]>("get_game_profiles");
 export const saveGameProfile = callable<[profile: GameProfile], GameProfile>("save_game_profile");
