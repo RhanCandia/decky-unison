@@ -45,7 +45,8 @@ jobs:
       - name: Package Plugin Archive
         run: |
           mkdir -p build/decky-unison
-          cp -r bin dist backend main.py package.json plugin.json README.md LICENSE build/decky-unison/
+          cp -r dist backend main.py package.json plugin.json README.md LICENSE build/decky-unison/
+          if [ -d bin ]; then cp -r bin build/decky-unison/; fi
           
           # Clean up developer/source files from backend in release bundle
           rm -rf build/decky-unison/backend/__pycache__ \
@@ -55,8 +56,10 @@ jobs:
                  build/decky-unison/backend/entrypoint.sh \
                  build/decky-unison/backend/src
           
-          # Ensure execution permissions for Unison binaries
-          chmod +x build/decky-unison/bin/*
+          # Ensure execution permissions for Unison binaries if any exist
+          if [ -d build/decky-unison/bin ] && [ -n "$(ls -A build/decky-unison/bin 2>/dev/null)" ]; then
+            chmod +x build/decky-unison/bin/*
+          fi
           
           cd build
           zip -r ../decky-unison.zip decky-unison

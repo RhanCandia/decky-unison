@@ -17,7 +17,7 @@ It leverages **[Unison File Synchronizer](https://github.com/bcpierce00/unison)*
   - **Socket Mode**: Connect directly to `socket://host:port` without SSH overhead (ideal for Tailscale/WireGuard or local LAN).
   - **Local / Mount Mode**: Sync against mounted SMB/NFS/rclone shares.
 - **⚙️ Unison CLI Toggles**: Customize conflict resolution policies (`prefer = newer | deck | remote`), `-batch`, `-auto`, `-confirmbigdel`, `-times`, and custom flags.
-- **📦 Zero-Dependency Bundling**: Bundles official standalone static `unison` v2.54.0 binaries for SteamOS x86_64.
+- **🔍 Binary Checker & 1-Click Downloader**: Checks system and user paths for Unison, displays a subtle status badge with version & update checking, and offers 1-click on-demand download of official stable static releases directly to persistent storage (`~/.config/decky-unison/bin/`).
 
 ---
 
@@ -25,13 +25,11 @@ It leverages **[Unison File Synchronizer](https://github.com/bcpierce00/unison)*
 
 ```
 decky-unison/
-├── bin/
-│   ├── unison               # Bundled static x86_64 Unison binary (v2.54.0)
-│   └── unison-fsmonitor     # Bundled filesystem monitor helper
 ├── backend/
 │   ├── game_detector.py     # Binary VDF parser & Proton compatdata save scanner
 │   ├── file_browser.py      # Safe directory traversal & quick jumps
 │   ├── unison_runner.py     # Async Unison execution, argument parsing, & streaming
+│   ├── binary_manager.py    # Unison availability checker, version detector, & downloader
 │   ├── remote_manager.py    # Remote server configuration & SSH key generation
 │   └── config_store.py      # Profile & remote persistence (~/.config/decky-unison)
 ├── src/

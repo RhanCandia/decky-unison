@@ -9,7 +9,7 @@ import {
 } from "@decky/ui";
 import { toaster } from "@decky/api";
 import { useState, useEffect } from "react";
-import { NonSteamGame, GameProfile, RemoteConfig, HistoryEntry } from "../types";
+import { NonSteamGame, GameProfile, RemoteConfig, HistoryEntry, UnisonBinaryStatus } from "../types";
 import {
   getNonSteamGames,
   getGameProfiles,
@@ -19,6 +19,8 @@ import {
   getHistory,
   getLatestSyncLog,
   testRemote,
+  getUnisonStatus,
+  downloadUnisonBinary,
 } from "../api";
 import { GameProfileModal } from "./GameProfileModal";
 import { RemoteConfigModal } from "./RemoteConfigModal";
@@ -37,6 +39,7 @@ import {
   FaExchangeAlt,
   FaChevronDown,
   FaChevronUp,
+  FaCloudDownloadAlt,
 } from "react-icons/fa";
 
 export function QuickAccessPanel() {
@@ -45,11 +48,69 @@ export function QuickAccessPanel() {
   const [profiles, setProfiles] = useState<GameProfile[]>([]);
   const [remotes, setRemotes] = useState<RemoteConfig[]>([]);
   const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [binaryStatus, setBinaryStatus] = useState<UnisonBinaryStatus | null>(null);
+  const [downloadingBinary, setDownloadingBinary] = useState<boolean>(false);
+  const [checkingBinary, setCheckingBinary] = useState<boolean>(false);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [testingRemoteId, setTestingRemoteId] = useState<string | null>(null);
   const [remoteStatusMap, setRemoteStatusMap] = useState<Record<string, { success: boolean; message: string }>>({});
   const [openDropdownProfileId, setOpenDropdownProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const checkBinary = async (forceUpdateCheck: boolean = false) => {
+    try {
+      setCheckingBinary(true);
+      const res = await getUnisonStatus(forceUpdateCheck);
+      setBinaryStatus(res);
+      if (forceUpdateCheck) {
+        if (res.update_available) {
+          toaster.toast({
+            title: "Unison Update Available",
+            body: `Version v${res.latest_version} is available to install.`,
+          });
+        } else if (res.installed) {
+          toaster.toast({
+            title: "Unison Up to Date",
+            body: `You are running the latest version (v${res.version || res.latest_version}).`,
+          });
+        }
+      }
+    } catch (e: any) {
+      console.error("[DeckyUnison] Binary status check error:", e);
+    } finally {
+      setCheckingBinary(false);
+    }
+  };
+
+  const handleDownloadBinary = async () => {
+    setDownloadingBinary(true);
+    toaster.toast({
+      title: "Downloading Unison",
+      body: "Fetching official stable release archive...",
+    });
+    try {
+      const res = await downloadUnisonBinary();
+      if (res.success) {
+        toaster.toast({
+          title: "Unison Installed",
+          body: res.message || `Unison v${res.version} is ready.`,
+        });
+        await checkBinary(false);
+      } else {
+        toaster.toast({
+          title: "Installation Failed",
+          body: res.message || "Could not install Unison binary.",
+        });
+      }
+    } catch (e: any) {
+      toaster.toast({
+        title: "Download Error",
+        body: e?.message || "Failed to download Unison.",
+      });
+    } finally {
+      setDownloadingBinary(false);
+    }
+  };
 
   const refreshAll = async () => {
     try {
@@ -63,6 +124,7 @@ export function QuickAccessPanel() {
       setProfiles(p);
       setRemotes(r);
       setHistory(h);
+      await checkBinary(false);
     } catch (e) {
       console.error("[DeckyUnison] Refresh error:", e);
     } finally {
@@ -76,6 +138,13 @@ export function QuickAccessPanel() {
 
   const handleSyncGame = async (profile: GameProfile, targetId?: string) => {
     if (!profile.id) return;
+    if (binaryStatus && !binaryStatus.installed) {
+      toaster.toast({
+        title: "Unison Missing",
+        body: "Please download Unison using the banner above before syncing.",
+      });
+      return;
+    }
     setSyncingId(profile.id);
 
     const targets = profile.targets || [];
@@ -313,6 +382,138 @@ export function QuickAccessPanel() {
           outline-offset: 1px !important;
         }
       `}</style>
+
+      {/* Top Info Banner / Unison Binary Availability Checker */}
+      {binaryStatus && !binaryStatus.installed ? (
+        <div
+          style={{
+            background: "rgba(230, 126, 34, 0.14)",
+            border: "1px solid rgba(230, 126, 34, 0.45)",
+            borderRadius: "6px",
+            padding: "8px 10px",
+            margin: "4px 0 14px 0",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1, overflow: "hidden" }}>
+              <FaExclamationCircle style={{ color: "#e67e22", fontSize: "16px", flexShrink: 0 }} />
+              <div style={{ overflow: "hidden" }}>
+                <div style={{ color: "#ffffff", fontWeight: "bold", fontSize: "12px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  Unison Not Installed
+                </div>
+                <div style={{ color: "#c9d1d9", fontSize: "10px", marginTop: "1px" }}>
+                  Required to sync game saves.
+                </div>
+              </div>
+            </div>
+            <DialogButton
+              className="decky-unison-btn"
+              onClick={handleDownloadBinary}
+              disabled={downloadingBinary}
+              style={{
+                height: "28px",
+                minWidth: "92px",
+                width: "auto",
+                padding: "0 10px",
+                background: "#1a9fff",
+                color: "#ffffff",
+                fontSize: "11px",
+                fontWeight: "bold",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "5px",
+                flexShrink: 0,
+              }}
+            >
+              <FaCloudDownloadAlt className={downloadingBinary ? "spin" : ""} />
+              {downloadingBinary ? "Installing..." : "Download"}
+            </DialogButton>
+          </div>
+        </div>
+      ) : binaryStatus?.installed ? (
+        <div
+          style={{
+            background: "rgba(255, 255, 255, 0.04)",
+            border: "1px solid rgba(255, 255, 255, 0.08)",
+            borderRadius: "6px",
+            padding: "6px 10px",
+            margin: "4px 0 14px 0",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            fontSize: "11px",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+            <span style={{ color: "#2ecc71", fontSize: "9px" }}>●</span>
+            <span style={{ color: "#8b929a" }}>Unison:</span>
+            <strong style={{ color: "#ffffff", whiteSpace: "nowrap" }}>
+              v{binaryStatus.version || "Ready"}
+            </strong>
+            {binaryStatus.update_available && (
+              <span
+                style={{
+                  background: "rgba(230, 126, 34, 0.2)",
+                  color: "#e67e22",
+                  border: "1px solid rgba(230, 126, 34, 0.4)",
+                  borderRadius: "4px",
+                  padding: "1px 5px",
+                  fontSize: "9px",
+                  fontWeight: "bold",
+                }}
+              >
+                v{binaryStatus.latest_version} available
+              </span>
+            )}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            {binaryStatus.update_available && (
+              <DialogButton
+                className="decky-unison-btn-compact"
+                onClick={handleDownloadBinary}
+                disabled={downloadingBinary}
+                style={{
+                  height: "22px",
+                  padding: "0 8px",
+                  background: "#1a9fff",
+                  color: "#ffffff",
+                  fontSize: "10px",
+                  fontWeight: "bold",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                }}
+              >
+                <FaCloudDownloadAlt className={downloadingBinary ? "spin" : ""} />
+                {downloadingBinary ? "Updating..." : "Update"}
+              </DialogButton>
+            )}
+
+            <DialogButton
+              className="decky-unison-btn-compact"
+              onClick={() => checkBinary(true)}
+              disabled={checkingBinary}
+              style={{
+                height: "22px",
+                padding: "0 6px",
+                background: "rgba(255, 255, 255, 0.08)",
+                color: checkingBinary ? "#1a9fff" : "#8b929a",
+                fontSize: "10px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <FaSyncAlt className={checkingBinary ? "spin" : ""} />
+            </DialogButton>
+          </div>
+        </div>
+      ) : null}
 
       {/* Tab Navigation Header - Focusable for controller */}
       <Focusable

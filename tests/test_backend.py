@@ -8,6 +8,7 @@ from backend.file_browser import FileBrowser
 from backend.config_store import ConfigStore
 from backend.remote_manager import RemoteManager
 from backend.unison_runner import UnisonRunner
+from backend.binary_manager import BinaryManager
 
 class TestDeckyUnisonBackend(unittest.TestCase):
     def setUp(self):
@@ -277,6 +278,68 @@ Host myserver
         res4 = rm.pair_ssh_remote("127.0.0.1", "user", "pass", port=59999)
         self.assertFalse(res4["success"])
         self.assertIn("Could not reach", res4["message"])
+
+    def test_binary_manager_detection(self):
+        bm = BinaryManager(self.settings_dir, self.plugin_dir, user_home=self.test_dir)
+        # Create a mock unison binary in settings_dir/bin
+        bin_dir = os.path.join(self.settings_dir, "bin")
+        os.makedirs(bin_dir, exist_ok=True)
+        mock_unison = os.path.join(bin_dir, "unison")
+        with open(mock_unison, "w") as f:
+            f.write("#!/bin/sh\necho 'unison version 2.54.0 (ocaml 4.14.3)'\n")
+        os.chmod(mock_unison, 0o755)
+
+        located = bm.locate_binary()
+        self.assertEqual(located, os.path.abspath(mock_unison))
+
+        async def run_check():
+            return await bm.check_binary_status(force_update_check=False)
+
+        status = asyncio.run(run_check())
+        self.assertTrue(status["installed"])
+        self.assertEqual(status["version"], "2.54.0")
+        self.assertIn("2.54.0", status["version_details"])
+
+    def test_binary_manager_missing(self):
+        empty_dir = tempfile.mkdtemp()
+        try:
+            bm = BinaryManager(empty_dir, empty_dir, user_home=empty_dir)
+            # Override locate_binary search candidates by ensuring none exist in empty_dir
+            # and patch locate_binary to return None
+            orig_locate = bm.locate_binary
+            bm.locate_binary = lambda: None
+
+            async def run_check():
+                return await bm.check_binary_status(force_update_check=False)
+
+            status = asyncio.run(run_check())
+            self.assertFalse(status["installed"])
+            self.assertEqual(status["path"], "")
+            self.assertEqual(status["version"], "")
+            self.assertIn("not found", status["error"])
+        finally:
+            shutil.rmtree(empty_dir, ignore_errors=True)
+
+    def test_unison_runner_missing_binary(self):
+        empty_dir = tempfile.mkdtemp()
+        try:
+            runner = UnisonRunner(empty_dir, empty_dir, user_home=empty_dir)
+            runner._locate_unison_binary = lambda: ""
+            runner.bin_path = ""
+
+            async def run_test():
+                return await runner.run_sync(
+                    local_path=os.path.join(empty_dir, "loc"),
+                    remote_config={"type": "local"},
+                    remote_path=os.path.join(empty_dir, "rem")
+                )
+
+            res = asyncio.run(run_test())
+            self.assertFalse(res["success"])
+            self.assertEqual(res["status"], "error")
+            self.assertIn("not installed", res["details"])
+        finally:
+            shutil.rmtree(empty_dir, ignore_errors=True)
 
 if __name__ == "__main__":
     unittest.main()

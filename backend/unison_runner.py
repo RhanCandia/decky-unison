@@ -1,4 +1,5 @@
 import os
+import shutil
 import asyncio
 import re
 import shlex
@@ -15,15 +16,20 @@ class UnisonRunner:
         self.bin_path = self._locate_unison_binary()
 
     def _locate_unison_binary(self) -> str:
-        bundled = os.path.join(self.plugin_dir, "bin", "unison")
-        if os.path.isfile(bundled) and os.access(bundled, os.X_OK):
-            return bundled
+        candidates = [
+            os.path.join(self.settings_dir, "bin", "unison"),
+            os.path.join(self.user_home, ".local", "bin", "unison"),
+            shutil.which("unison") or "",
+            "/usr/bin/unison",
+            "/usr/local/bin/unison",
+            os.path.join(self.plugin_dir, "bin", "unison"),
+        ]
 
-        system_unison = "/usr/bin/unison"
-        if os.path.isfile(system_unison) and os.access(system_unison, os.X_OK):
-            return system_unison
+        for p in candidates:
+            if p and os.path.isfile(p) and os.access(p, os.X_OK):
+                return os.path.abspath(p)
 
-        return bundled
+        return ""
 
     def build_unison_args(
         self,
@@ -81,8 +87,9 @@ class UnisonRunner:
             else:
                 remote_root = f"ssh://{user_host}{path_part}"
 
+        bin_exec = self._locate_unison_binary() or self.bin_path or "unison"
         args = [
-            self.bin_path,
+            bin_exec,
             local_abs,
             remote_root,
             "-batch" if opts.get("batch", True) else "-batch=false",
@@ -167,6 +174,17 @@ class UnisonRunner:
                     "details": f"Local path does not exist and could not be created: {e}",
                     "raw_output": ""
                 }
+
+        bin_exec = self._locate_unison_binary() or self.bin_path
+        if not bin_exec or not os.path.isfile(bin_exec) or not os.access(bin_exec, os.X_OK):
+            return {
+                "success": False,
+                "status": "error",
+                "files_synced": 0,
+                "details": "Unison binary is not installed. Please download it from the top banner.",
+                "command": "",
+                "raw_output": "Unison executable not found."
+            }
 
         cmd = self.build_unison_args(local_path, remote_config, remote_path, options, ssh_key_path)
 

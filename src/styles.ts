@@ -110,6 +110,14 @@ export const GLOBAL_STYLES = `
   outline: 2px solid #ffffff !important;
   outline-offset: 1px !important;
 }
+
+@keyframes decky-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.spin {
+  animation: decky-spin 1s linear infinite;
+}
 `;
 
 export function injectGlobalStyles(): () => void {

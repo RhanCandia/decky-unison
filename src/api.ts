@@ -11,7 +11,11 @@ import {
   SSHKeyInfo,
   SSHConfigHost,
   HistoryEntry,
+  UnisonBinaryStatus,
 } from "./types";
+
+export const getUnisonStatus = callable<[checkUpdate?: boolean], UnisonBinaryStatus>("get_unison_status");
+export const downloadUnisonBinary = callable<[], { success: boolean; message: string; version?: string; path?: string }>("download_unison_binary");
 
 export const getNonSteamGames = callable<[], NonSteamGame[]>("get_non_steam_games");
 export const getSaveCandidates = callable<[appId: number, gameName: string], SaveCandidate[]>("get_save_candidates");

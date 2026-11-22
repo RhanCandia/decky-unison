@@ -32,6 +32,11 @@ class TestPluginE2E(unittest.TestCase):
             plugin.unison_runner.unison_dir = os.path.join(self.settings_dir, "unison")
             os.makedirs(plugin.unison_runner.unison_dir, exist_ok=True)
 
+            # 0. Unison binary status
+            u_status = await plugin.get_unison_status()
+            self.assertIn("installed", u_status)
+            self.assertIn("latest_version", u_status)
+
             # 1. Directory browsing & Quick jumps
             listing = await plugin.browse_directory(self.user_home)
             self.assertEqual(listing["current_path"], os.path.abspath(self.user_home))

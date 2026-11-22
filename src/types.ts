@@ -147,3 +147,13 @@ export interface HistoryEntry {
   raw_output?: string;
   timestamp: number;
 }
+
+export interface UnisonBinaryStatus {
+  installed: boolean;
+  path?: string;
+  version?: string;
+  version_details?: string;
+  latest_version?: string;
+  update_available?: boolean;
+  error?: string | null;
+}

@@ -13,6 +13,7 @@ from backend.file_browser import FileBrowser
 from backend.remote_manager import RemoteManager
 from backend.unison_runner import UnisonRunner
 from backend.config_store import ConfigStore
+from backend.binary_manager import BinaryManager
 
 # Mock or import decky loader module
 try:
@@ -53,11 +54,22 @@ class Plugin:
         self.file_browser = FileBrowser(self.user_home)
         self.remote_manager = RemoteManager(self.settings_dir, self.user_home)
         self.unison_runner = UnisonRunner(self.plugin_dir, self.settings_dir, self.user_home)
+        self.binary_manager = BinaryManager(self.settings_dir, self.plugin_dir, self.user_home)
 
         decky.logger.info("Decky Unison backend initialized.")
 
     async def _unload(self):
         decky.logger.info("Decky Unison unloaded.")
+
+    # 0. Unison Binary Management
+    async def get_unison_status(self, check_update: bool = False) -> Dict[str, Any]:
+        return await self.binary_manager.check_binary_status(force_update_check=check_update)
+
+    async def download_unison_binary(self) -> Dict[str, Any]:
+        res = await self.binary_manager.download_and_install_binary()
+        if res.get("success"):
+            self.unison_runner.bin_path = self.unison_runner._locate_unison_binary()
+        return res
 
     # 1. Non-Steam Game Detection
     async def get_non_steam_games(self) -> List[Dict[str, Any]]:
@@ -113,6 +125,16 @@ class Plugin:
 
     # 5. Manual Sync Execution
     async def trigger_sync(self, profile_id: str, target_id: Optional[str] = None) -> Dict[str, Any]:
+        # Pre-check Unison binary availability
+        bin_status = await self.binary_manager.check_binary_status(force_update_check=False)
+        if not bin_status.get("installed"):
+            return {
+                "success": False,
+                "status": "error",
+                "details": "Unison binary is not installed. Please download it from the top banner.",
+                "message": "Unison binary is not installed. Please download it from the top banner."
+            }
+
         profile = self.config_store.get_profile_by_id(profile_id)
         if not profile:
             return {"success": False, "message": f"Profile {profile_id} not found"}
