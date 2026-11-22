@@ -266,9 +266,15 @@ export function QuickAccessPanel() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
+  const latestHistory = history[0];
   const latestSyncTimestamp =
-    history[0]?.timestamp ||
+    latestHistory?.timestamp ||
     Math.max(0, ...profiles.map((p) => p.last_synced || 0));
+
+  const latestSyncGame =
+    latestHistory?.game_name ||
+    profiles.find((p) => (p.last_synced || 0) === latestSyncTimestamp)?.game_name ||
+    "";
 
   const formatLastSync = (ts?: number | null) => {
     if (!ts) return "Never";
@@ -455,15 +461,12 @@ export function QuickAccessPanel() {
       ) : binaryStatus?.installed ? (
         <div
           style={{
-            background: "rgba(255, 255, 255, 0.04)",
-            border: "1px solid rgba(255, 255, 255, 0.08)",
-            borderRadius: "6px",
-            padding: "6px 10px",
-            margin: "4px 0 14px 0",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             gap: "8px",
+            padding: "2px 4px",
+            margin: "2px 0 10px 0",
             fontSize: "11px",
           }}
         >
@@ -497,9 +500,23 @@ export function QuickAccessPanel() {
 
             <div style={{ display: "flex", alignItems: "center", gap: "4px", overflow: "hidden", whiteSpace: "nowrap" }}>
               <span style={{ color: "#8b929a", fontSize: "10px" }}>Last sync:</span>
-              <span style={{ color: "#c9d1d9", fontSize: "10px", fontWeight: "bold", overflow: "hidden", textOverflow: "ellipsis" }}>
+              <span style={{ color: "#c9d1d9", fontSize: "10px", fontWeight: "bold" }}>
                 {formatLastSync(latestSyncTimestamp)}
               </span>
+              {latestSyncGame && (
+                <span
+                  style={{
+                    color: "#67c1f5",
+                    fontSize: "10px",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                  title={latestSyncGame}
+                >
+                  ({latestSyncGame})
+                </span>
+              )}
             </div>
           </div>
 
