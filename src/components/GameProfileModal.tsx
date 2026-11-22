@@ -16,10 +16,10 @@ import {
   showModal,
 } from "@decky/ui";
 import { useState, useEffect } from "react";
-import { NonSteamGame, GameProfile, RemoteConfig, SaveCandidate } from "../types";
+import { NonSteamGame, GameProfile, RemoteConfig, SaveCandidate, GameRemoteTarget } from "../types";
 import { getSaveCandidates, saveGameProfile, deleteGameProfile } from "../api";
 import { FileBrowserModal } from "./FileBrowserModal";
-import { FaFolderOpen, FaTrash, FaCheck, FaCog } from "react-icons/fa";
+import { FaFolderOpen, FaTrash, FaCheck, FaCog, FaPlus, FaServer } from "react-icons/fa";
 
 interface GameProfileModalProps {
   game: NonSteamGame;
@@ -36,43 +36,74 @@ export function GameProfileModal({
   closeModal,
   onSaved,
 }: GameProfileModalProps) {
-  const selectedRemote = remotes.find((r) => r.id === (existingProfile?.remote_id || remotes[0]?.id));
-  const remoteUser = selectedRemote?.user || "";
   const sanitizedGameName = game.name.replace(/[/\\?%*:|"<>]/g, "_");
-  const suggestedAbsPath = remoteUser
-    ? `/home/${remoteUser}/saves/${sanitizedGameName}`
-    : `/home/username/saves/${sanitizedGameName}`;
+
+  const buildDefaultTarget = (remote?: RemoteConfig, index: number = 0): GameRemoteTarget => {
+    const user = remote?.user || "";
+    const defPath = user
+      ? `/home/${user}/saves/${sanitizedGameName}`
+      : `/home/username/saves/${sanitizedGameName}`;
+    return {
+      id: "tgt-" + Math.random().toString(36).substring(2, 9),
+      remote_id: remote?.id || (remotes[0]?.id || ""),
+      name: remote?.name ? `${remote.name}` : `Remote Target ${index + 1}`,
+      remote_path: defPath,
+      prefer: "newer",
+      backup: true,
+      maxbackups: 5,
+      auto: true,
+      batch: true,
+      confirmbigdel: false,
+      times: true,
+      ignorearchives: false,
+      extra_args: "",
+    };
+  };
+
+  const initialTargets: GameRemoteTarget[] = (() => {
+    if (existingProfile?.targets && existingProfile.targets.length > 0) {
+      return existingProfile.targets.map((t) => ({ ...t }));
+    }
+    if (existingProfile?.remote_id) {
+      const r = remotes.find((rem) => rem.id === existingProfile.remote_id);
+      return [
+        {
+          id: "tgt-" + Math.random().toString(36).substring(2, 9),
+          remote_id: existingProfile.remote_id,
+          name: r?.name || "Default Remote",
+          remote_path: existingProfile.remote_path || "",
+          prefer: existingProfile.prefer || "newer",
+          backup: existingProfile.backup ?? true,
+          maxbackups: existingProfile.maxbackups ?? 5,
+          auto: existingProfile.auto ?? true,
+          batch: existingProfile.batch ?? true,
+          confirmbigdel: existingProfile.confirmbigdel ?? false,
+          times: existingProfile.times ?? true,
+          ignorearchives: existingProfile.ignorearchives ?? false,
+          extra_args: existingProfile.extra_args || "",
+          last_synced: existingProfile.last_synced,
+          last_status: existingProfile.last_status,
+          last_details: existingProfile.last_details,
+          last_direction: existingProfile.last_direction,
+          last_direction_label: existingProfile.last_direction_label,
+        },
+      ];
+    }
+    return [buildDefaultTarget(remotes[0], 0)];
+  })();
 
   const [localPath, setLocalPath] = useState<string>(existingProfile?.local_path || "");
-  const [remoteId, setRemoteId] = useState<string>(
-    existingProfile?.remote_id || (remotes.length > 0 ? remotes[0].id || "" : "")
-  );
-  const [remotePath, setRemotePath] = useState<string>(
-    existingProfile?.remote_path
-      ? (existingProfile.remote_path.startsWith("~/")
-          ? existingProfile.remote_path.replace(/^~\//, remoteUser ? `/home/${remoteUser}/` : "/home/user/")
-          : existingProfile.remote_path)
-      : suggestedAbsPath
+  const [targets, setTargets] = useState<GameRemoteTarget[]>(initialTargets);
+  const [editingTargetIdx, setEditingTargetIdx] = useState<number>(0);
+  const [activeTargetId, setActiveTargetId] = useState<string>(
+    existingProfile?.active_target_id || initialTargets[0]?.id || ""
   );
   const [candidates, setCandidates] = useState<SaveCandidate[]>([]);
   const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
 
-  // Unison CLI Options
-  const [prefer, setPrefer] = useState<"newer" | "root1" | "root2">(
-    existingProfile?.prefer || "newer"
-  );
-  const [backup, setBackup] = useState<boolean>(existingProfile?.backup ?? true);
-  const [maxbackups, setMaxbackups] = useState<number>(existingProfile?.maxbackups || 5);
-  const [auto, setAuto] = useState<boolean>(existingProfile?.auto ?? true);
-  const [batch, setBatch] = useState<boolean>(existingProfile?.batch ?? true);
-  const [confirmbigdel, setConfirmbigdel] = useState<boolean>(
-    existingProfile?.confirmbigdel ?? false
-  );
-  const [times, setTimes] = useState<boolean>(existingProfile?.times ?? true);
-  const [ignorearchives, setIgnorearchives] = useState<boolean>(
-    existingProfile?.ignorearchives ?? false
-  );
-  const [extraArgs, setExtraArgs] = useState<string>(existingProfile?.extra_args || "");
+  // Keep editingTargetIdx valid
+  const currentIdx = Math.min(Math.max(0, editingTargetIdx), Math.max(0, targets.length - 1));
+  const currentTarget = targets[currentIdx] || targets[0];
 
   useEffect(() => {
     getSaveCandidates(game.app_id, game.name)
@@ -95,23 +126,57 @@ export function GameProfileModal({
     );
   };
 
+  const updateCurrentTarget = (fields: Partial<GameRemoteTarget>) => {
+    setTargets((prev) => {
+      const copy = [...prev];
+      if (copy[currentIdx]) {
+        copy[currentIdx] = { ...copy[currentIdx], ...fields };
+      }
+      return copy;
+    });
+  };
+
+  const handleAddTarget = () => {
+    const unusedRemote = remotes.find((r) => !targets.some((t) => t.remote_id === r.id)) || remotes[0];
+    const newTarget = buildDefaultTarget(unusedRemote, targets.length);
+    setTargets((prev) => [...prev, newTarget]);
+    setEditingTargetIdx(targets.length);
+  };
+
+  const handleRemoveTarget = (idxToRemove: number) => {
+    if (targets.length <= 1) return;
+    const targetToRemove = targets[idxToRemove];
+    const updated = targets.filter((_, idx) => idx !== idxToRemove);
+    setTargets(updated);
+    if (currentIdx >= updated.length) {
+      setEditingTargetIdx(updated.length - 1);
+    }
+    if (activeTargetId === targetToRemove.id) {
+      setActiveTargetId(updated[0].id);
+    }
+  };
+
   const handleSave = async () => {
+    const curActive = targets.find((t) => t.id === activeTargetId) || targets[0];
     const profile: GameProfile = {
       id: existingProfile?.id,
       app_id: game.app_id,
       game_name: game.name,
       local_path: localPath,
-      remote_id: remoteId,
-      remote_path: remotePath,
-      prefer,
-      backup,
-      maxbackups: Number(maxbackups),
-      auto,
-      batch,
-      confirmbigdel,
-      times,
-      ignorearchives,
-      extra_args: extraArgs,
+      active_target_id: curActive?.id || targets[0]?.id,
+      targets: targets,
+      // Legacy fields synced with active target
+      remote_id: curActive?.remote_id || targets[0]?.remote_id,
+      remote_path: curActive?.remote_path || targets[0]?.remote_path,
+      prefer: curActive?.prefer,
+      backup: curActive?.backup,
+      maxbackups: curActive?.maxbackups,
+      auto: curActive?.auto,
+      batch: curActive?.batch,
+      confirmbigdel: curActive?.confirmbigdel,
+      times: curActive?.times,
+      ignorearchives: curActive?.ignorearchives,
+      extra_args: curActive?.extra_args,
     };
     await saveGameProfile(profile);
     onSaved?.();
@@ -184,55 +249,149 @@ export function GameProfileModal({
             )}
           </DialogControlsSection>
 
-          {/* Section 2: Remote Target Server */}
+          {/* Section 2: Remote Sync Targets (Multi-Remote) */}
           <DialogControlsSection>
-            <DialogControlsSectionHeader>Remote Destination</DialogControlsSectionHeader>
-            {remotes.length > 0 ? (
-              <DropdownItem
-                label="Target Server"
-                rgOptions={remotes.map((r) => ({
-                  label: `${r.name} (${r.type.toUpperCase()})`,
-                  data: r.id!,
-                }))}
-                selectedOption={remoteId}
-                onChange={(opt) => {
-                  setRemoteId(opt.data);
-                  const found = remotes.find((r) => r.id === opt.data);
-                  if (found?.user && remotePath.includes("/home/")) {
-                    setRemotePath(`/home/${found.user}/saves/${sanitizedGameName}`);
-                  }
-                }}
-              />
-            ) : (
-              <div style={{ fontSize: "12px", color: "#e74c3c", padding: "4px 0" }}>
-                ⚠️ No remotes configured yet. Add a remote in Settings first.
+            <DialogControlsSectionHeader>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+                <span>Remote Sync Targets ({targets.length})</span>
+                <DialogButton
+                  className="decky-unison-btn-compact"
+                  onClick={handleAddTarget}
+                  style={{ height: "26px", fontSize: "11px", padding: "0 8px", color: "#67c1f5" }}
+                >
+                  <FaPlus /> Add Target
+                </DialogButton>
               </div>
+            </DialogControlsSectionHeader>
+
+            {/* Target Tab Switcher when there are multiple targets */}
+            {targets.length > 1 && (
+              <Focusable
+                flow-children="horizontal"
+                style={{
+                  display: "flex",
+                  gap: "6px",
+                  overflowX: "auto",
+                  paddingBottom: "6px",
+                  marginBottom: "8px",
+                }}
+              >
+                {targets.map((tgt, idx) => {
+                  const r = remotes.find((rem) => rem.id === tgt.remote_id);
+                  const label = tgt.name || r?.name || `Target ${idx + 1}`;
+                  const isSelected = idx === currentIdx;
+                  return (
+                    <DialogButton
+                      key={tgt.id || idx}
+                      className="decky-unison-chip"
+                      style={{
+                        background: isSelected ? "#1a9fff" : "rgba(255, 255, 255, 0.08)",
+                        color: isSelected ? "#fff" : "#c9d1d9",
+                        fontWeight: isSelected ? "bold" : "normal",
+                        height: "28px",
+                        fontSize: "11px",
+                        padding: "0 10px",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "5px",
+                      }}
+                      onClick={() => setEditingTargetIdx(idx)}
+                    >
+                      <FaServer style={{ fontSize: "10px" }} />
+                      <span>{label}</span>
+                    </DialogButton>
+                  );
+                })}
+              </Focusable>
             )}
 
-            <TextField
-              label="Remote Directory (Absolute Path)"
-              description="e.g. /home/user/saves/GameName (no '~/' allowed)"
-              value={remotePath}
-              onChange={(e) => setRemotePath(e.target.value)}
-            />
+            {/* Currently Active / Editing Target Card Details */}
+            {currentTarget && (
+              <div
+                style={{
+                  background: "rgba(0, 0, 0, 0.25)",
+                  padding: "10px",
+                  borderRadius: "6px",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", color: "#67c1f5", fontWeight: "bold" }}>
+                    Target #{currentIdx + 1}: {currentTarget.name || "Remote"}
+                  </span>
+                  {targets.length > 1 && (
+                    <DialogButton
+                      className="decky-unison-btn-compact"
+                      onClick={() => handleRemoveTarget(currentIdx)}
+                      style={{ color: "#e74c3c", height: "24px", fontSize: "10px", padding: "0 6px" }}
+                    >
+                      <FaTrash /> Remove
+                    </DialogButton>
+                  )}
+                </div>
+
+                {remotes.length > 0 ? (
+                  <DropdownItem
+                    label="Target Server"
+                    rgOptions={remotes.map((r) => ({
+                      label: `${r.name} (${r.type.toUpperCase()})`,
+                      data: r.id!,
+                    }))}
+                    selectedOption={currentTarget.remote_id}
+                    onChange={(opt) => {
+                      const found = remotes.find((r) => r.id === opt.data);
+                      const updates: Partial<GameRemoteTarget> = {
+                        remote_id: opt.data,
+                      };
+                      if (!currentTarget.name || remotes.some((r) => r.name === currentTarget.name)) {
+                        updates.name = found?.name || "Remote";
+                      }
+                      if (found?.user && currentTarget.remote_path.includes("/home/")) {
+                        updates.remote_path = `/home/${found.user}/saves/${sanitizedGameName}`;
+                      }
+                      updateCurrentTarget(updates);
+                    }}
+                  />
+                ) : (
+                  <div style={{ fontSize: "12px", color: "#e74c3c", padding: "4px 0" }}>
+                    ⚠️ No remotes configured yet. Add a remote in Settings first.
+                  </div>
+                )}
+
+                <TextField
+                  label="Target Nickname"
+                  description="e.g. Main PC, Living Room NAS, Travel Laptop"
+                  value={currentTarget.name || ""}
+                  onChange={(e) => updateCurrentTarget({ name: e.target.value })}
+                />
+
+                <TextField
+                  label="Remote Directory (Absolute Path)"
+                  description="e.g. /home/user/saves/GameName (no '~/' allowed)"
+                  value={currentTarget.remote_path}
+                  onChange={(e) => updateCurrentTarget({ remote_path: e.target.value })}
+                />
+
+                <DropdownItem
+                  label="Conflict Resolution (-prefer)"
+                  description="Policy when files change on both Deck and Server"
+                  rgOptions={[
+                    { label: "Newer File Wins (prefer newer)", data: "newer" },
+                    { label: "Steam Deck Overwrites Remote (prefer deck)", data: "root1" },
+                    { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
+                  ]}
+                  selectedOption={currentTarget.prefer || "newer"}
+                  onChange={(opt) => updateCurrentTarget({ prefer: opt.data as any })}
+                />
+              </div>
+            )}
           </DialogControlsSection>
 
-          {/* Section 3: Sync Policy & Collapsible Advanced Options */}
-          <DialogControlsSection>
-            <DialogControlsSectionHeader>Sync Policy</DialogControlsSectionHeader>
-            <DropdownItem
-              label="Conflict Resolution (-prefer)"
-              description="Policy when files change on both Deck and Server"
-              rgOptions={[
-                { label: "Newer File Wins (prefer newer)", data: "newer" },
-                { label: "Steam Deck Overwrites Remote (prefer deck)", data: "root1" },
-                { label: "Remote Overwrites Deck (prefer remote)", data: "root2" },
-              ]}
-              selectedOption={prefer}
-              onChange={(opt) => setPrefer(opt.data as any)}
-            />
-
-            <div style={{ marginTop: "6px" }}>
+          {/* Section 3: Advanced Options Collapsible */}
+          {currentTarget && (
+            <DialogControlsSection>
               <DialogButton
                 className="decky-unison-btn-compact"
                 onClick={() => setShowAdvanced(!showAdvanced)}
@@ -255,62 +414,62 @@ export function GameProfileModal({
                   <ToggleField
                     label="Versioned Backups (-backup)"
                     description="Keep previous copies before overwriting"
-                    checked={backup}
-                    onChange={(val) => setBackup(val)}
+                    checked={currentTarget.backup ?? true}
+                    onChange={(val) => updateCurrentTarget({ backup: val })}
                   />
 
-                  {backup && (
+                  {(currentTarget.backup ?? true) && (
                     <TextField
                       label="Max Backups (-maxbackups)"
-                      value={String(maxbackups)}
-                      onChange={(e) => setMaxbackups(Number(e.target.value))}
+                      value={String(currentTarget.maxbackups || 5)}
+                      onChange={(e) => updateCurrentTarget({ maxbackups: Number(e.target.value) })}
                     />
                   )}
 
                   <ToggleField
                     label="Batch Mode (-batch)"
                     description="Non-interactive execution"
-                    checked={batch}
-                    onChange={(val) => setBatch(val)}
+                    checked={currentTarget.batch ?? true}
+                    onChange={(val) => updateCurrentTarget({ batch: val })}
                   />
 
                   <ToggleField
                     label="Automatic Acceptance (-auto)"
                     description="Automatically accept non-conflicts"
-                    checked={auto}
-                    onChange={(val) => setAuto(val)}
+                    checked={currentTarget.auto ?? true}
+                    onChange={(val) => updateCurrentTarget({ auto: val })}
                   />
 
                   <ToggleField
                     label="Confirm Big Deletions (-confirmbigdel)"
                     description="Safeguard against mass file deletion"
-                    checked={confirmbigdel}
-                    onChange={(val) => setConfirmbigdel(val)}
+                    checked={currentTarget.confirmbigdel ?? false}
+                    onChange={(val) => updateCurrentTarget({ confirmbigdel: val })}
                   />
 
                   <ToggleField
                     label="Preserve Timestamps (-times)"
                     description="Synchronize file timestamps"
-                    checked={times}
-                    onChange={(val) => setTimes(val)}
+                    checked={currentTarget.times ?? true}
+                    onChange={(val) => updateCurrentTarget({ times: val })}
                   />
 
                   <ToggleField
                     label="Ignore Archive Mismatches (-ignorearchives)"
                     description="Bypass archive checks (use to fix archive errors or force fresh initial sync)"
-                    checked={ignorearchives}
-                    onChange={(val) => setIgnorearchives(val)}
+                    checked={currentTarget.ignorearchives ?? false}
+                    onChange={(val) => updateCurrentTarget({ ignorearchives: val })}
                   />
 
                   <TextField
                     label="Extra Custom CLI Flags"
-                    value={extraArgs}
-                    onChange={(e) => setExtraArgs(e.target.value)}
+                    value={currentTarget.extra_args || ""}
+                    onChange={(e) => updateCurrentTarget({ extra_args: e.target.value })}
                   />
                 </div>
               )}
-            </div>
-          </DialogControlsSection>
+            </DialogControlsSection>
+          )}
         </div>
       </DialogBody>
 

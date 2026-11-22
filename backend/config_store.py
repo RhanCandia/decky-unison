@@ -86,8 +86,51 @@ class ConfigStore:
         return None
 
     # Profiles (Per-game Unison configurations)
+    def _normalize_profile(self, p: Dict[str, Any]) -> Dict[str, Any]:
+        targets = p.get("targets")
+        if not isinstance(targets, list) or len(targets) == 0:
+            target_id = str(uuid.uuid4())
+            remote_id = p.get("remote_id", "")
+            remote_name = ""
+            for r in self.get_remotes():
+                if r.get("id") == remote_id:
+                    remote_name = r.get("name", "")
+                    break
+            target = {
+                "id": target_id,
+                "remote_id": remote_id,
+                "name": remote_name or "Default Remote",
+                "remote_path": p.get("remote_path", ""),
+                "prefer": p.get("prefer", "newer"),
+                "backup": p.get("backup", True),
+                "maxbackups": p.get("maxbackups", 5),
+                "auto": p.get("auto", True),
+                "batch": p.get("batch", True),
+                "confirmbigdel": p.get("confirmbigdel", False),
+                "times": p.get("times", True),
+                "ignorearchives": p.get("ignorearchives", False),
+                "extra_args": p.get("extra_args", ""),
+                "last_synced": p.get("last_synced"),
+                "last_status": p.get("last_status"),
+                "last_details": p.get("last_details"),
+                "last_direction": p.get("last_direction"),
+                "last_direction_label": p.get("last_direction_label"),
+            }
+            p["targets"] = [target]
+            p["active_target_id"] = target_id
+        else:
+            for t in targets:
+                if not t.get("id"):
+                    t["id"] = str(uuid.uuid4())
+            if not p.get("active_target_id") or not any(t.get("id") == p.get("active_target_id") for t in targets):
+                p["active_target_id"] = targets[0]["id"]
+        return p
+
     def get_profiles(self) -> List[Dict[str, Any]]:
-        return self.data.get("profiles", [])
+        profiles = self.data.get("profiles", [])
+        for p in profiles:
+            self._normalize_profile(p)
+        return profiles
 
     def get_profile_by_id(self, profile_id: str) -> Optional[Dict[str, Any]]:
         for p in self.get_profiles():
@@ -101,22 +144,62 @@ class ConfigStore:
                 return p
         return None
 
+    def set_active_target(self, profile_id: str, target_id: str) -> bool:
+        for p in self.get_profiles():
+            if p.get("id") == profile_id:
+                targets = p.get("targets", [])
+                target = next((t for t in targets if t.get("id") == target_id), None)
+                if target:
+                    p["active_target_id"] = target_id
+                    # synchronize legacy fields with active target
+                    p["remote_id"] = target.get("remote_id")
+                    p["remote_path"] = target.get("remote_path")
+                    p["prefer"] = target.get("prefer", "newer")
+                    p["backup"] = target.get("backup", True)
+                    p["maxbackups"] = target.get("maxbackups", 5)
+                    p["auto"] = target.get("auto", True)
+                    p["batch"] = target.get("batch", True)
+                    p["confirmbigdel"] = target.get("confirmbigdel", False)
+                    p["times"] = target.get("times", True)
+                    p["ignorearchives"] = target.get("ignorearchives", False)
+                    p["extra_args"] = target.get("extra_args", "")
+                    p["last_synced"] = target.get("last_synced")
+                    p["last_status"] = target.get("last_status")
+                    p["last_details"] = target.get("last_details")
+                    p["last_direction"] = target.get("last_direction")
+                    p["last_direction_label"] = target.get("last_direction_label")
+                    self.save()
+                    return True
+        return False
+
     def save_profile(self, profile: Dict[str, Any]) -> Dict[str, Any]:
         profiles = self.data.setdefault("profiles", [])
         profile_id = profile.get("id")
+        self._normalize_profile(profile)
+
+        # Synchronize legacy root fields with active target
+        active_id = profile.get("active_target_id")
+        targets = profile.get("targets", [])
+        active_target = next((t for t in targets if t.get("id") == active_id), targets[0] if targets else None)
+        if active_target:
+            profile["remote_id"] = active_target.get("remote_id")
+            profile["remote_path"] = active_target.get("remote_path")
+            profile["prefer"] = active_target.get("prefer", "newer")
+            profile["backup"] = active_target.get("backup", True)
+            profile["maxbackups"] = active_target.get("maxbackups", 5)
+            profile["auto"] = active_target.get("auto", True)
+            profile["batch"] = active_target.get("batch", True)
+            profile["confirmbigdel"] = active_target.get("confirmbigdel", False)
+            profile["times"] = active_target.get("times", True)
+            profile["ignorearchives"] = active_target.get("ignorearchives", False)
+            profile["extra_args"] = active_target.get("extra_args", "")
+            if "last_synced" not in profile or profile["last_synced"] is None:
+                profile["last_synced"] = active_target.get("last_synced")
+            if "last_status" not in profile or profile["last_status"] is None:
+                profile["last_status"] = active_target.get("last_status")
+
         if not profile_id:
             profile["id"] = str(uuid.uuid4())
-            # Default options if not provided
-            profile.setdefault("prefer", "newer")
-            profile.setdefault("backup", True)
-            profile.setdefault("maxbackups", 5)
-            profile.setdefault("auto", True)
-            profile.setdefault("batch", True)
-            profile.setdefault("confirmbigdel", False)
-            profile.setdefault("times", True)
-            profile.setdefault("extra_args", "")
-            profile.setdefault("last_synced", None)
-            profile.setdefault("last_status", None)
             profiles.append(profile)
         else:
             for idx, p in enumerate(profiles):
@@ -133,14 +216,32 @@ class ConfigStore:
         self.save()
         return profile
 
-    def update_profile_status(self, profile_id: str, status: str, details: str, direction: str = "", direction_label: str = ""):
+    def update_profile_status(
+        self,
+        profile_id: str,
+        status: str,
+        details: str,
+        direction: str = "",
+        direction_label: str = "",
+        target_id: Optional[str] = None
+    ):
+        now = int(time.time())
         for p in self.get_profiles():
             if p.get("id") == profile_id:
-                p["last_synced"] = int(time.time())
+                p["last_synced"] = now
                 p["last_status"] = status
                 p["last_details"] = details
                 p["last_direction"] = direction
                 p["last_direction_label"] = direction_label
+                tid = target_id or p.get("active_target_id")
+                for t in p.get("targets", []):
+                    if t.get("id") == tid:
+                        t["last_synced"] = now
+                        t["last_status"] = status
+                        t["last_details"] = details
+                        t["last_direction"] = direction
+                        t["last_direction_label"] = direction_label
+                        break
                 break
         self.save()
 

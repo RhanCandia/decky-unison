@@ -51,13 +51,37 @@ export interface RemoteConfig {
   local_path?: string;
 }
 
+export interface GameRemoteTarget {
+  id: string;
+  remote_id: string;
+  name?: string;
+  remote_path: string;
+  prefer?: "newer" | "root1" | "root2";
+  backup?: boolean;
+  maxbackups?: number;
+  auto?: boolean;
+  batch?: boolean;
+  confirmbigdel?: boolean;
+  times?: boolean;
+  ignorearchives?: boolean;
+  extra_args?: string;
+  last_synced?: number | null;
+  last_status?: "in_sync" | "updated" | "conflict" | "error" | null;
+  last_details?: string | null;
+  last_direction?: "upload" | "download" | "bidirectional" | "in_sync" | "conflict" | "error" | null;
+  last_direction_label?: string | null;
+}
+
 export interface GameProfile {
   id?: string;
   app_id: number;
   game_name: string;
   local_path: string;
-  remote_id: string;
-  remote_path: string;
+  active_target_id?: string;
+  targets?: GameRemoteTarget[];
+  // Legacy / fallback fields
+  remote_id?: string;
+  remote_path?: string;
   prefer?: "newer" | "root1" | "root2";
   backup?: boolean;
   maxbackups?: number;
@@ -108,6 +132,8 @@ export interface SSHConfigHost {
 
 export interface HistoryEntry {
   profile_id: string;
+  target_id?: string;
+  target_name?: string;
   game_name: string;
   status: string;
   success: boolean;

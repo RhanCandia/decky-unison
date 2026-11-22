@@ -15,6 +15,7 @@ import {
   getGameProfiles,
   getRemotes,
   triggerSync,
+  setActiveTarget,
   getHistory,
   getLatestSyncLog,
   testRemote,
@@ -34,6 +35,8 @@ import {
   FaArrowUp,
   FaArrowDown,
   FaExchangeAlt,
+  FaChevronDown,
+  FaChevronUp,
 } from "react-icons/fa";
 
 export function QuickAccessPanel() {
@@ -45,6 +48,7 @@ export function QuickAccessPanel() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [testingRemoteId, setTestingRemoteId] = useState<string | null>(null);
   const [remoteStatusMap, setRemoteStatusMap] = useState<Record<string, { success: boolean; message: string }>>({});
+  const [openDropdownProfileId, setOpenDropdownProfileId] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
 
   const refreshAll = async () => {
@@ -70,25 +74,34 @@ export function QuickAccessPanel() {
     refreshAll();
   }, []);
 
-  const handleSyncGame = async (profile: GameProfile) => {
+  const handleSyncGame = async (profile: GameProfile, targetId?: string) => {
     if (!profile.id) return;
     setSyncingId(profile.id);
+
+    const targets = profile.targets || [];
+    const curTarget =
+      (targetId ? targets.find((t) => t.id === targetId) : undefined) ||
+      targets.find((t) => t.id === profile.active_target_id) ||
+      targets[0];
+    const targetRemote = remotes.find((r) => r.id === curTarget?.remote_id);
+    const targetLabel = curTarget?.name || targetRemote?.name || "Remote";
+
     toaster.toast({
       title: "Unison Syncing",
-      body: `Syncing ${profile.game_name}...`,
+      body: `Syncing ${profile.game_name} (${targetLabel})...`,
     });
 
     try {
-      const res = await triggerSync(profile.id);
+      const res = await triggerSync(profile.id, curTarget?.id);
       if (res.success) {
         toaster.toast({
           title: "Sync Finished",
-          body: `${profile.game_name}: ${res.direction_label || res.details}`,
+          body: `${profile.game_name} (${targetLabel}): ${res.direction_label || res.details}`,
         });
       } else {
         toaster.toast({
           title: "Sync Failed",
-          body: `${profile.game_name}: ${res.details || "Check sync log for details"}`,
+          body: `${profile.game_name} (${targetLabel}): ${res.details || "Check sync log for details"}`,
         });
       }
     } catch (e: any) {
@@ -99,6 +112,22 @@ export function QuickAccessPanel() {
     } finally {
       setSyncingId(null);
       refreshAll();
+    }
+  };
+
+  const handleTargetChange = async (profileId: string, newTargetId: string) => {
+    try {
+      await setActiveTarget(profileId, newTargetId);
+      setProfiles((prev) =>
+        prev.map((p) => {
+          if (p.id === profileId) {
+            return { ...p, active_target_id: newTargetId };
+          }
+          return p;
+        })
+      );
+    } catch (e) {
+      console.error("[DeckyUnison] Failed to switch target:", e);
     }
   };
 
@@ -168,9 +197,15 @@ export function QuickAccessPanel() {
     return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const renderDirectionBadge = (prof: GameProfile) => {
-    const dir = prof.last_direction;
-    const label = prof.last_direction_label || prof.last_details;
+  const renderDirectionBadge = (item?: {
+    last_direction?: string | null;
+    last_direction_label?: string | null;
+    last_details?: string | null;
+    last_status?: string | null;
+  }) => {
+    const dir = item?.last_direction;
+    const label = item?.last_direction_label || item?.last_details;
+    const status = item?.last_status;
 
     if (dir === "upload") {
       return (
@@ -190,13 +225,13 @@ export function QuickAccessPanel() {
           <FaExchangeAlt /> {label || "Both ways"}
         </span>
       );
-    } else if (dir === "in_sync" || prof.last_status === "in_sync") {
+    } else if (dir === "in_sync" || status === "in_sync") {
       return (
         <span style={{ color: "#8b929a", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
           <FaCheckCircle /> In sync
         </span>
       );
-    } else if (prof.last_status === "error" || dir === "error") {
+    } else if (status === "error" || dir === "error") {
       return (
         <span style={{ color: "#e74c3c", display: "flex", alignItems: "center", gap: "3px", fontSize: "11px" }}>
           <FaExclamationCircle /> Error
@@ -336,7 +371,7 @@ export function QuickAccessPanel() {
       {/* TAB 1: GAMES */}
       {activeTab === "games" && (
         <>
-          <PanelSection title="Initialized Games">
+          <PanelSection title="Synced Games">
             {loading ? (
               <PanelSectionRow>
                 <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
@@ -346,6 +381,12 @@ export function QuickAccessPanel() {
             ) : profiles.length > 0 ? (
               profiles.map((prof) => {
                 const isSyncing = syncingId === prof.id;
+                const targets = prof.targets && prof.targets.length > 0 ? prof.targets : [];
+                const activeTargetId = prof.active_target_id || targets[0]?.id;
+                const activeTarget = targets.find((t) => t.id === activeTargetId) || targets[0];
+                const activeRemote = remotes.find((r) => r.id === activeTarget?.remote_id);
+                const targetLabel = activeTarget?.name || activeRemote?.name || "Remote";
+
                 const matchingGame = games.find((g) => g.app_id === prof.app_id) || {
                   app_id: prof.app_id,
                   name: prof.game_name,
@@ -387,16 +428,126 @@ export function QuickAccessPanel() {
                           {prof.game_name}
                         </div>
                         <div>
-                          {renderDirectionBadge(prof)}
+                          {renderDirectionBadge(activeTarget || prof)}
                         </div>
                       </div>
 
-                      {/* Row 2: Timestamp */}
+                      {/* Row 2: Target Selector (In-Panel Contained Dropdown) */}
+                      {targets.length > 1 ? (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", margin: "2px 0" }}>
+                          <DialogButton
+                            className="decky-unison-btn"
+                            onClick={() =>
+                              setOpenDropdownProfileId(
+                                openDropdownProfileId === prof.id ? null : prof.id!
+                              )
+                            }
+                            style={{
+                              height: "28px",
+                              width: "100%",
+                              padding: "0 10px",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              fontSize: "11px",
+                              background: "rgba(255, 255, 255, 0.08)",
+                              color: "#fff",
+                              borderRadius: "4px",
+                            }}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                              <span style={{ color: "#8b929a" }}>Target:</span>
+                              <strong style={{ color: "#67c1f5", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {targetLabel}
+                              </strong>
+                              {activeRemote?.type && (
+                                <span style={{ fontSize: "9px", color: "#8b929a" }}>
+                                  ({activeRemote.type.toUpperCase()})
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: "10px", color: "#8b929a", marginLeft: "6px" }}>
+                              {openDropdownProfileId === prof.id ? <FaChevronUp /> : <FaChevronDown />}
+                            </span>
+                          </DialogButton>
+
+                          {/* Contained In-Panel Dropdown Menu (Strictly within QAM sidebar) */}
+                          {openDropdownProfileId === prof.id && (
+                            <div
+                              style={{
+                                background: "rgba(18, 22, 28, 0.95)",
+                                border: "1px solid rgba(103, 193, 245, 0.4)",
+                                borderRadius: "6px",
+                                overflow: "hidden",
+                                display: "flex",
+                                flexDirection: "column",
+                                boxShadow: "0 4px 14px rgba(0, 0, 0, 0.6)",
+                                marginTop: "2px",
+                              }}
+                            >
+                              <Focusable flow-children="vertical" style={{ display: "flex", flexDirection: "column" }}>
+                                {targets.map((t, tIdx) => {
+                                  const isSelected = t.id === activeTarget?.id;
+                                  const r = remotes.find((rem) => rem.id === t.remote_id);
+                                  const label = t.name || r?.name || `Target ${tIdx + 1}`;
+                                  return (
+                                    <DialogButton
+                                      key={t.id}
+                                      className="decky-unison-btn"
+                                      onClick={() => {
+                                        handleTargetChange(prof.id!, t.id);
+                                        setOpenDropdownProfileId(null);
+                                      }}
+                                      style={{
+                                        height: "30px",
+                                        minHeight: "30px",
+                                        padding: "0 10px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "space-between",
+                                        background: isSelected ? "rgba(26, 159, 255, 0.25)" : "transparent",
+                                        border: "none",
+                                        borderBottom: tIdx < targets.length - 1 ? "1px solid rgba(255, 255, 255, 0.06)" : "none",
+                                        borderRadius: "0",
+                                        fontSize: "11px",
+                                        color: isSelected ? "#67c1f5" : "#c9d1d9",
+                                        fontWeight: isSelected ? "bold" : "normal",
+                                        textAlign: "left",
+                                      }}
+                                    >
+                                      <div style={{ display: "flex", alignItems: "center", gap: "6px", overflow: "hidden" }}>
+                                        <span style={{ color: isSelected ? "#67c1f5" : "transparent", fontSize: "8px" }}>●</span>
+                                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {label}
+                                        </span>
+                                      </div>
+                                      {r?.type && (
+                                        <span style={{ fontSize: "9px", color: isSelected ? "#67c1f5" : "#8b929a", marginLeft: "6px", flexShrink: 0 }}>
+                                          {r.type.toUpperCase()}
+                                        </span>
+                                      )}
+                                    </DialogButton>
+                                  );
+                                })}
+                              </Focusable>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "11px", color: "#8b929a" }}>
+                          <span>
+                            Target: <strong style={{ color: "#67c1f5" }}>{targetLabel}</strong>
+                            {activeRemote?.type ? ` (${activeRemote.type.toUpperCase()})` : ""}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Row 3: Timestamp */}
                       <div style={{ fontSize: "10px", color: "#8b929a" }}>
-                        Last synced: {formatTime(prof.last_synced)}
+                        Last synced: {formatTime(activeTarget?.last_synced ?? prof.last_synced)}
                       </div>
 
-                      {/* Row 3: Action Buttons (Focusable with horizontal navigation) */}
+                      {/* Row 4: Action Buttons (Focusable with horizontal navigation) */}
                       <Focusable
                         flow-children="horizontal"
                         style={{ display: "flex", gap: "6px", alignItems: "center", marginTop: "2px", width: "100%" }}
@@ -404,7 +555,7 @@ export function QuickAccessPanel() {
                         {/* Primary Sync button */}
                         <DialogButton
                           className="decky-unison-btn"
-                          onClick={() => handleSyncGame(prof)}
+                          onClick={() => handleSyncGame(prof, activeTarget?.id)}
                           disabled={isSyncing}
                           style={{
                             flex: 1,
@@ -418,10 +569,19 @@ export function QuickAccessPanel() {
                             fontWeight: "bold",
                             background: isSyncing ? "#444" : "#1a9fff",
                             color: "#fff",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
                           }}
                         >
                           <FaSyncAlt className={isSyncing ? "spin" : ""} />
-                          <span>{isSyncing ? "Syncing..." : "Sync"}</span>
+                          <span>
+                            {isSyncing
+                              ? "Syncing..."
+                              : targets.length > 1
+                              ? `Sync (${targetLabel})`
+                              : "Sync"}
+                          </span>
                         </DialogButton>
 
                         {/* Compact Config Icon Button */}
@@ -445,7 +605,7 @@ export function QuickAccessPanel() {
                         </DialogButton>
 
                         {/* Compact Log Icon Button */}
-                        {prof.last_synced && (
+                        {(activeTarget?.last_synced || prof.last_synced) && (
                           <DialogButton
                             className="decky-unison-btn"
                             onClick={() => openLogForProfile(prof.id!, prof.game_name)}
@@ -459,7 +619,10 @@ export function QuickAccessPanel() {
                               justifyContent: "center",
                               fontSize: "13px",
                               background: "rgba(255, 255, 255, 0.08)",
-                              color: prof.last_status === "error" ? "#e74c3c" : "#c9d1d9",
+                              color:
+                                (activeTarget?.last_status ?? prof.last_status) === "error"
+                                  ? "#e74c3c"
+                                  : "#c9d1d9",
                             }}
                           >
                             <FaFileAlt />
@@ -473,13 +636,13 @@ export function QuickAccessPanel() {
             ) : (
               <PanelSectionRow>
                 <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
-                  No games initialized yet. Select a Non-Steam game below to set up Unison.
+                  No games set up for sync yet. Select a detected game below to get started.
                 </div>
               </PanelSectionRow>
             )}
           </PanelSection>
 
-          {/* Available Non-Steam Games to Initialize - Using native Field for reliable layout */}
+          {/* Available Non-Steam Games to Set Up - Using native Field for reliable layout */}
           <PanelSection title="Non-Steam Games Detected">
             {unconfiguredGames.length > 0 ? (
               unconfiguredGames.map((game) => (
@@ -511,7 +674,7 @@ export function QuickAccessPanel() {
                       onClick={() => openProfileConfig(game)}
                       style={{
                         height: "28px",
-                        minWidth: "60px",
+                        minWidth: "70px",
                         width: "auto",
                         padding: "0 10px",
                         display: "flex",
@@ -523,7 +686,7 @@ export function QuickAccessPanel() {
                         flexShrink: 0,
                       }}
                     >
-                      <FaPlus /> Init
+                      <FaPlus /> Set Up
                     </DialogButton>
                   </Field>
                 </PanelSectionRow>
@@ -533,7 +696,7 @@ export function QuickAccessPanel() {
                 <div style={{ padding: "12px", color: "#8b929a", textAlign: "center", fontSize: "11px" }}>
                   {games.length === 0
                     ? "No Non-Steam games detected in Steam shortcuts."
-                    : "All detected Non-Steam games are initialized!"}
+                    : "All detected Non-Steam games are set up for sync!"}
                 </div>
               </PanelSectionRow>
             )}

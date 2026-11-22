@@ -90,6 +90,49 @@ class TestDeckyUnisonBackend(unittest.TestCase):
         retrieved = store.get_profile_by_id(saved_prof["id"])
         self.assertEqual(retrieved["game_name"], "Elden Ring")
         self.assertEqual(retrieved["prefer"], "newer")
+        self.assertTrue(len(retrieved["targets"]) >= 1)
+        self.assertEqual(retrieved["active_target_id"], retrieved["targets"][0]["id"])
+
+        # Multi-target configuration
+        second_remote = store.save_remote({
+            "name": "Desktop PC",
+            "type": "ssh",
+            "host": "192.168.1.101",
+            "port": 22,
+            "user": "gamer"
+        })
+
+        retrieved["targets"].append({
+            "id": "target-desktop",
+            "remote_id": second_remote["id"],
+            "name": "Desktop PC",
+            "remote_path": "C:/Saves/elden_ring",
+            "prefer": "root1"
+        })
+        updated_prof = store.save_profile(retrieved)
+        self.assertEqual(len(updated_prof["targets"]), 2)
+
+        # Switch active target
+        switch_ok = store.set_active_target(updated_prof["id"], "target-desktop")
+        self.assertTrue(switch_ok)
+        rechecked = store.get_profile_by_id(updated_prof["id"])
+        self.assertEqual(rechecked["active_target_id"], "target-desktop")
+        self.assertEqual(rechecked["remote_id"], second_remote["id"])
+        self.assertEqual(rechecked["remote_path"], "C:/Saves/elden_ring")
+
+        # Update status for target
+        store.update_profile_status(
+            updated_prof["id"],
+            status="in_sync",
+            details="All files identical",
+            direction="in_sync",
+            direction_label="In sync",
+            target_id="target-desktop"
+        )
+        status_check = store.get_profile_by_id(updated_prof["id"])
+        self.assertEqual(status_check["last_status"], "in_sync")
+        target_desktop = next(t for t in status_check["targets"] if t["id"] == "target-desktop")
+        self.assertEqual(target_desktop["last_status"], "in_sync")
 
     def test_unison_runner_argument_building(self):
         runner = UnisonRunner(self.plugin_dir, self.settings_dir)

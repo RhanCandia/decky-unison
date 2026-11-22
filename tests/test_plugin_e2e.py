@@ -86,10 +86,34 @@ class TestPluginE2E(unittest.TestCase):
             with open(remote_file, "r") as f:
                 self.assertEqual(f.read(), "Deck Progress: Level 10")
 
-            # 7. Check History
+            # 7. Add a second target to the game profile
+            remote_save_secondary = os.path.join(self.test_dir, "SecondaryServerGameSave")
+            os.makedirs(remote_save_secondary, exist_ok=True)
+
+            prof_with_two_targets = (await plugin.get_game_profiles())[0]
+            prof_with_two_targets["targets"].append({
+                "id": "target-secondary",
+                "remote_id": saved_remote["id"],
+                "name": "Secondary Storage",
+                "remote_path": remote_save_secondary,
+                "prefer": "newer"
+            })
+            await plugin.save_game_profile(prof_with_two_targets)
+            await plugin.set_active_target(profile["id"], "target-secondary")
+
+            # Trigger sync explicitly to the secondary target
+            sync_res2 = await plugin.trigger_sync(profile["id"], "target-secondary")
+            self.assertTrue(sync_res2["success"], f"Secondary sync failed: {sync_res2}")
+            secondary_file = os.path.join(remote_save_secondary, "slot1.sav")
+            self.assertTrue(os.path.exists(secondary_file))
+            with open(secondary_file, "r") as f:
+                self.assertEqual(f.read(), "Deck Progress: Level 10")
+
+            # 8. Check History
             history = await plugin.get_history()
-            self.assertTrue(len(history) >= 1)
+            self.assertTrue(len(history) >= 2)
             self.assertEqual(history[0]["game_name"], "Test RPG Game")
+            self.assertEqual(history[0]["target_name"], "Secondary Storage")
             self.assertTrue(history[0]["success"])
 
             await plugin._unload()

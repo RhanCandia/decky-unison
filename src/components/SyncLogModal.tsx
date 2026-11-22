@@ -23,7 +23,7 @@ export function SyncLogModal({ log, closeModal }: SyncLogModalProps) {
   const [copied, setCopied] = useState<boolean>(false);
 
   const handleCopy = () => {
-    const textToCopy = `=== Decky Unison Sync Log ===\nGame: ${log.game_name}\nStatus: ${log.status} (${log.details})\nDirection: ${log.direction_label || "N/A"}\n\nCommand:\n${log.command || "N/A"}\n\nOutput:\n${log.raw_output || log.details || "No output recorded"}`;
+    const textToCopy = `=== Decky Unison Sync Log ===\nGame: ${log.game_name}${log.target_name ? ` (Target: ${log.target_name})` : ""}\nStatus: ${log.status} (${log.details})\nDirection: ${log.direction_label || "N/A"}\n\nCommand:\n${log.command || "N/A"}\n\nOutput:\n${log.raw_output || log.details || "No output recorded"}`;
     navigator.clipboard?.writeText(textToCopy);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
@@ -33,7 +33,7 @@ export function SyncLogModal({ log, closeModal }: SyncLogModalProps) {
 
   return (
     <ModalRoot onCancel={closeModal}>
-      <DialogHeader>Sync Log: {log.game_name}</DialogHeader>
+      <DialogHeader>Sync Log: {log.game_name} {log.target_name ? `(${log.target_name})` : ""}</DialogHeader>
       <DialogSubHeader>
         <span
           style={{

@@ -108,19 +108,45 @@ class Plugin:
     async def delete_game_profile(self, profile_id: str) -> bool:
         return self.config_store.delete_profile(profile_id)
 
+    async def set_active_target(self, profile_id: str, target_id: str) -> bool:
+        return self.config_store.set_active_target(profile_id, target_id)
+
     # 5. Manual Sync Execution
-    async def trigger_sync(self, profile_id: str) -> Dict[str, Any]:
+    async def trigger_sync(self, profile_id: str, target_id: Optional[str] = None) -> Dict[str, Any]:
         profile = self.config_store.get_profile_by_id(profile_id)
         if not profile:
             return {"success": False, "message": f"Profile {profile_id} not found"}
 
-        remote_id = profile.get("remote_id")
+        # Resolve target
+        targets = profile.get("targets", [])
+        target = None
+        target_id_to_use = target_id or profile.get("active_target_id")
+        if target_id_to_use:
+            for t in targets:
+                if t.get("id") == target_id_to_use:
+                    target = t
+                    break
+        if not target and targets:
+            target = targets[0]
+            target_id_to_use = target.get("id")
+
+        if not target:
+            remote_id = profile.get("remote_id")
+            remote_path = profile.get("remote_path", "").strip()
+            target_options = profile
+            target_name = "Default Remote"
+        else:
+            remote_id = target.get("remote_id")
+            remote_path = target.get("remote_path", "").strip()
+            target_options = target
+            target_name = target.get("name", "")
+
         remote = self.config_store.get_remote_by_id(remote_id)
         if not remote:
-            return {"success": False, "message": f"Remote {remote_id} not found for this game"}
+            return {"success": False, "message": f"Remote '{remote_id}' not found for this game"}
 
+        target_name = target_name or remote.get("name", "Remote")
         local_path = profile.get("local_path", "").strip()
-        remote_path = profile.get("remote_path", "").strip()
 
         if not local_path or not remote_path:
             return {"success": False, "message": "Local path and remote path must be specified"}
@@ -142,7 +168,7 @@ class Plugin:
 
             if not self.remote_manager.probe_tcp(probe_host, probe_port, timeout=2.0):
                 err_msg = f"Cannot reach {probe_host}:{probe_port}. Is the server online and on the same network?"
-                self.config_store.update_profile_status(profile_id, "error", err_msg)
+                self.config_store.update_profile_status(profile_id, "error", err_msg, target_id=target_id_to_use)
                 return {"success": False, "message": err_msg}
 
         ssh_key_info = self.remote_manager.ensure_ssh_key()
@@ -153,7 +179,7 @@ class Plugin:
             local_path=local_path,
             remote_config=remote,
             remote_path=remote_path,
-            options=profile,
+            options=target_options,
             ssh_key_path=ssh_key
         )
 
@@ -161,11 +187,15 @@ class Plugin:
         details = res.get("details", "")
         direction = res.get("direction", "")
         direction_label = res.get("direction_label", "")
-        self.config_store.update_profile_status(profile_id, status, details, direction, direction_label)
+        self.config_store.update_profile_status(
+            profile_id, status, details, direction, direction_label, target_id=target_id_to_use
+        )
 
         # Log to history
         self.config_store.add_history_entry({
             "profile_id": profile_id,
+            "target_id": target_id_to_use,
+            "target_name": target_name,
             "game_name": profile.get("game_name", "Game"),
             "status": status,
             "success": res.get("success", False),

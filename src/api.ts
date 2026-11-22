@@ -29,7 +29,8 @@ export const pairSSH = callable<[host: string, user: string, password: string, p
 export const getGameProfiles = callable<[], GameProfile[]>("get_game_profiles");
 export const saveGameProfile = callable<[profile: GameProfile], GameProfile>("save_game_profile");
 export const deleteGameProfile = callable<[profileId: string], boolean>("delete_game_profile");
+export const setActiveTarget = callable<[profileId: string, targetId: string], boolean>("set_active_target");
 
-export const triggerSync = callable<[profileId: string], SyncResult>("trigger_sync");
+export const triggerSync = callable<[profileId: string, targetId?: string], SyncResult>("trigger_sync");
 export const getHistory = callable<[], HistoryEntry[]>("get_history");
 export const getLatestSyncLog = callable<[profileId?: string], HistoryEntry | null>("get_latest_sync_log");
