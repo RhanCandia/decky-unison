@@ -38,6 +38,10 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Install Unison for Test Execution
+        run: |
+          sudo apt-get update && sudo apt-get install -y unison
+
       - name: Run Backend Unit Tests
         run: |
           python -m unittest discover -s tests -p "test_*.py" -v

@@ -234,11 +234,8 @@ Host myserver
             f.write("version 1")
 
         runner = UnisonRunner(os.path.abspath("."), self.settings_dir)
-        # Use bundled binary if available, or system binary
-        if not os.path.exists(runner.bin_path):
-            bundled = os.path.abspath("bin/unison")
-            if os.path.exists(bundled):
-                runner.bin_path = bundled
+        if not runner.bin_path or not os.path.exists(runner.bin_path):
+            self.skipTest("Unison binary not found in environment for live sync test")
 
         remote_local = {
             "type": "local"
